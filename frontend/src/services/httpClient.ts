@@ -5,8 +5,29 @@ import { ApiError } from "./apiError";
 // vite.config.ts), so the browser never needs to know the backend's real
 // port and there's no CORS to worry about. In production, point
 // VITE_API_BASE_URL at your deployed API's public URL.
-// ----------------------------------------------------------------------------
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+//
+// Every Express route in /server is mounted under "/api" (see
+// server/src/index.ts — app.use("/api", api)), and every call site in this
+// app (realApi.ts, mockApi.ts) builds its path as bare "/auth/login",
+// "/missions", etc. — WITHOUT an "/api" prefix, on the assumption that
+// BASE_URL already supplies it. That means BASE_URL must always end in
+// "/api", or every single request 404s against the live backend while
+// looking, at a glance, like a routing problem in the Express app.
+//
+// VITE_* vars are baked in at build time with no runtime/compile-time
+// check, so a Vercel env var set to the bare Render origin (missing the
+// "/api" suffix — an easy copy-paste mistake) fails silently: the build
+// succeeds, the app loads, and only the network tab reveals the missing
+// "/api" segment. Normalizing here — accepting either
+// "https://x.onrender.com" or "https://x.onrender.com/api" — makes that
+// entire class of misconfiguration impossible instead of just documented.
+function resolveApiBaseUrl(): string {
+  const raw = (import.meta.env.VITE_API_BASE_URL ?? "/api").trim();
+  const noTrailingSlash = raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  return noTrailingSlash.endsWith("/api") ? noTrailingSlash : `${noTrailingSlash}/api`;
+}
+
+const BASE_URL = resolveApiBaseUrl();
 
 // Render's free tier can cold-start a sleeping instance in tens of
 // seconds, so this is deliberately generous — the goal isn't a snappy
