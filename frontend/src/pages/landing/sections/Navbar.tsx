@@ -15,6 +15,7 @@ import {
   Bot,
 } from "lucide-react";
 import { MagneticButton } from "@/components/motion/MagneticButton";
+import { useIntroStore } from "@/store/introStore";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_MODULES = [
@@ -38,6 +39,12 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [platformOpen, setPlatformOpen] = useState(false);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Navbar is `position: fixed`, so without this it renders on top of the
+  // cinematic intro from frame one regardless of scroll position. The
+  // intro flips this off only once the visitor actually starts scrolling
+  // past it (see IntroLandingPage.tsx) — not on Skip, since skipping still
+  // lands you in the intro's "ready" beat, not the real site.
+  const introActive = useIntroStore((s) => s.introActive);
 
   useEffect(() => {
     function onScroll() {
@@ -46,6 +53,15 @@ export function Navbar() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Every hook above runs unconditionally, every render, regardless of
+  // introActive — Rules of Hooks requires the same hooks in the same
+  // order every time. "Hide during intro" is therefore a render-output
+  // decision, not a hook-execution decision: bail out of JSX here, after
+  // all hooks have already run, instead of returning before them.
+  if (introActive) {
+    return null;
+  }
 
   function openPlatform() {
     if (closeTimeout.current) clearTimeout(closeTimeout.current);

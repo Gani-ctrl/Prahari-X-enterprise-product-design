@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Plus, Radar, Cpu, Signal as SignalIcon, Satellite, MapPin, Bot, Pencil, Trash2, ShieldCheck, Sparkles, MessageSquare,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -18,7 +19,9 @@ import { toast } from "@/store/toastStore";
 import { timeAgo, cn } from "@/lib/utils";
 import type { ThreatCategory, ThreatReport } from "@/types";
 
-const CATEGORY_ICON: Record<ThreatCategory, ElementType> = {
+// `LucideIcon`, not the generic React `ElementType` — see NotificationsPanel.tsx
+// for why `ElementType` collapses this kind of dynamic icon-map lookup to `never`.
+const CATEGORY_ICON: Record<ThreatCategory, LucideIcon> = {
   cyber: Cpu,
   drone: Radar,
   satellite: Satellite,

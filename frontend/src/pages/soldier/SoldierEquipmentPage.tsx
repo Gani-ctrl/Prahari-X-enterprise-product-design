@@ -1,6 +1,5 @@
 import { motion } from "motion/react";
-import { Boxes, Truck, Radar, Crosshair as WeaponIcon, HeartPulse, Satellite } from "lucide-react";
-import type { ElementType } from "react";
+import { Boxes, Truck, Radar, Crosshair as WeaponIcon, HeartPulse, Satellite, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -10,7 +9,9 @@ import { useSoldierContext } from "@/hooks/useSoldierContext";
 import { formatDate } from "@/lib/utils";
 import type { AssetCategory } from "@/types";
 
-const CATEGORY_ICON: Record<AssetCategory, ElementType> = {
+// `LucideIcon`, not the generic React `ElementType` — see NotificationsPanel.tsx
+// for why `ElementType` collapses this kind of dynamic icon-map lookup to `never`.
+const CATEGORY_ICON: Record<AssetCategory, LucideIcon> = {
   vehicle: Truck,
   drone: Radar,
   weapon: WeaponIcon,

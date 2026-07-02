@@ -1,13 +1,21 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion } from "motion/react";
-import { Bell, Radar, Crosshair, Users, Info, CheckCheck } from "lucide-react";
-import { useEffect, type ElementType } from "react";
+import { Bell, Radar, Crosshair, Users, Info, CheckCheck, type LucideIcon } from "lucide-react";
+import { useEffect } from "react";
 import { useNotificationStore } from "@/store/notificationStore";
 import { usePolling } from "@/hooks/usePolling";
 import { timeAgo, cn } from "@/lib/utils";
 import type { NotificationType } from "@/types";
 
-const ICONS: Record<NotificationType, ElementType> = {
+// `LucideIcon` (not the generic React `ElementType`) — `ElementType` is a
+// union that also includes every JSX intrinsic tag name ("div", "svg",
+// etc.), and indexing a `Record<K, ElementType>` then rendering the result
+// as `<Icon />` makes TypeScript intersect the prop types of every possible
+// union member to find what's safe to pass, which collapses to `never` for
+// a set this heterogeneous. `LucideIcon` is the exact type lucide-react
+// exports for its icon components, so this map only ever contains one
+// concrete, renderable component shape.
+const ICONS: Record<NotificationType, LucideIcon> = {
   threat: Radar,
   mission: Crosshair,
   personnel: Users,

@@ -1,9 +1,10 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Crosshair, Radar, Boxes, Users, Bot, Settings, Search, CornerDownLeft, Swords, GraduationCap, Building2, Truck, Stethoscope, MapPinned, Command,
+  type LucideIcon,
 } from "lucide-react";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { missionsApi, personnelApi, assetsApi, threatsApi, inventoryApi } from "@/services/api";
@@ -12,7 +13,13 @@ interface CommandItem {
   id: string;
   label: string;
   group: string;
-  icon: ElementType;
+  // `LucideIcon`, not the generic React `ElementType` — `ElementType` also
+  // covers every JSX intrinsic tag ("div", "svg", ...), so rendering a
+  // dynamically-picked `ElementType` value as `<Icon />` forces TypeScript
+  // to intersect the prop types of every union member, which collapses to
+  // `never`. `LucideIcon` is lucide-react's own exact type for these
+  // components, so it stays a single concrete, renderable shape.
+  icon: LucideIcon;
   action: () => void;
   keywords?: string;
 }

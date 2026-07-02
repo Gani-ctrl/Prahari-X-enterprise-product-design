@@ -9,7 +9,10 @@ import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { COMMAND_ROLES } from "@/types";
 import { useAuthStore } from "@/store/authStore";
 
-const LandingPage = lazy(() => import("@/pages/landing/LandingPage"));
+// "/" renders the cinematic intro wrapped around the untouched LandingPage
+// (see IntroLandingPage.tsx) — LandingPage itself is never imported here
+// directly, so it's impossible for this change to affect any other route.
+const IntroLandingPage = lazy(() => import("@/pages/landing/IntroLandingPage"));
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const CommanderSignUpPage = lazy(() => import("@/pages/auth/CommanderSignUpPage"));
 const SoldierLoginPage = lazy(() => import("@/pages/auth/SoldierLoginPage"));
@@ -65,7 +68,7 @@ export default function App() {
   return (
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<IntroLandingPage />} />
 
         <Route element={<AuthLayout />}>
           <Route path="/auth/login" element={<LoginPage />} />

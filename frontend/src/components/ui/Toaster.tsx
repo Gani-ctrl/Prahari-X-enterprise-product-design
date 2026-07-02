@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle2, AlertTriangle, XCircle, Info, X } from "lucide-react";
-import type { ElementType } from "react";
+import { CheckCircle2, AlertTriangle, XCircle, Info, X, type LucideIcon } from "lucide-react";
 import { useToastStore, type ToastVariant } from "@/store/toastStore";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<ToastVariant, ElementType> = {
+// `LucideIcon`, not the generic React `ElementType` — see NotificationsPanel.tsx
+// for why `ElementType` collapses this kind of dynamic icon-map lookup to `never`.
+const ICONS: Record<ToastVariant, LucideIcon> = {
   success: CheckCircle2,
   error: XCircle,
   warning: AlertTriangle,
