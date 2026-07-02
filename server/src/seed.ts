@@ -212,7 +212,7 @@ async function main() {
   // 2. Personnel roster — 24 records, realistic Indian names/ranks, each
   //    assigned the unit/location of the squad they'll belong to below.
   // ------------------------------------------------------------------------
-  const personnel = [];
+  const personnel: Awaited<ReturnType<typeof prisma.personnel.create>>[] = [];
   for (let i = 0; i < 24; i++) {
     const name = `${FIRST_NAMES[i]} ${LAST_NAMES[i]}`;
     const status = STATUS_CYCLE[i % STATUS_CYCLE.length];
@@ -253,7 +253,7 @@ async function main() {
     { index: 15, email: "soldier3@prahari-x.mil" },
     { index: 20, email: "soldier4@prahari-x.mil" },
   ];
-  const soldierUsers = [];
+  const soldierUsers: Awaited<ReturnType<typeof prisma.user.create>>[] = [];
   for (const link of soldierLinks) {
     const p = personnel[link.index];
     soldierUsers.push(
@@ -278,7 +278,7 @@ async function main() {
   // 4. Squads — created from the squadDefs declared above, so each squad's
   //    unit matches every one of its members' Personnel.unit.
   // ------------------------------------------------------------------------
-  const squads = [];
+  const squads: Awaited<ReturnType<typeof prisma.squad.create>>[] = [];
   for (const def of squadDefs) {
     squads.push(
       await prisma.squad.create({
@@ -321,7 +321,7 @@ async function main() {
   const statusCycle: Array<"operational" | "deployed" | "maintenance" | "decommissioned"> = [
     "operational", "deployed", "operational", "operational", "maintenance", "deployed", "operational", "decommissioned",
   ];
-  const assets = [];
+  const assets: Awaited<ReturnType<typeof prisma.asset.create>>[] = [];
   for (let i = 0; i < assetDefs.length; i++) {
     const [name, category, model] = assetDefs[i];
     assets.push(
@@ -370,7 +370,7 @@ async function main() {
     { name: "Operation Ghost Compass", description: "Planning phase for a Western Ghats reconnaissance corridor survey.", region: REGIONS[3], priority: "high", status: "planning", progress: 12, squadIdx: 2, startOffset: 8, endOffset: 50, equipment: [6] },
     { name: "Operation Vantage Point", description: "Active coastal ISR and interdiction operation with drone overwatch.", region: REGIONS[2], priority: "critical", status: "active", progress: 55, squadIdx: 3, startOffset: -15, endOffset: 20, equipment: [7, 11] },
   ];
-  const missions = [];
+  const missions: Awaited<ReturnType<typeof prisma.mission.create>>[] = [];
   for (const def of missionDefs) {
     const squad = squads[def.squadIdx];
     const squadDef = squadDefs[def.squadIdx];
@@ -431,7 +431,7 @@ async function main() {
     ["Perimeter sensor tripped, unconfirmed contact", "ground", "low", "neutralized", "Ground Sensor Grid"],
     ["Encrypted burst transmission intercepted", "signal", "medium", "active", "SIGINT Array"],
   ];
-  const threats = [];
+  const threats: Awaited<ReturnType<typeof prisma.threatReport.create>>[] = [];
   for (let i = 0; i < threatDefs.length; i++) {
     const [title, category, severity, status, source] = threatDefs[i];
     threats.push(
@@ -471,7 +471,7 @@ async function main() {
     ["Ridgeback MRAP", "vehicle", "Mine-resistant patrol vehicle", 3, 1, 650000],
     ["Hawkeye Mk III", "drone", "ISR reconnaissance drone, 8hr endurance", 8, 3, 72000],
   ];
-  const inventory = [];
+  const inventory: Awaited<ReturnType<typeof prisma.inventoryItem.create>>[] = [];
   for (const [name, category, spec, quantity, reorderThreshold, unitCost] of inventoryDefs) {
     const status = quantity === 0 ? "out_of_stock" : quantity <= reorderThreshold ? "low_stock" : "in_stock";
     inventory.push(
@@ -497,7 +497,7 @@ async function main() {
     ["Small Unit Leadership", "leadership", "Decision-making, delegation, and mission command for squad leads.", 45, false, "active", 12, 50],
     ["High-Altitude & Extreme Climate Ops", "survival", "Operating and surviving in extreme cold-weather, high-altitude environments.", 38, false, "completed", 20, 95],
   ];
-  const training = [];
+  const training: Awaited<ReturnType<typeof prisma.trainingProgram.create>>[] = [];
   for (const [name, category, description, durationHours, mandatory, status, enrolledCount, completionRate] of trainingDefs) {
     training.push(
       await prisma.trainingProgram.create({

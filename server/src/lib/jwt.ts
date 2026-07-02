@@ -9,6 +9,33 @@ const ACCESS_TTL = process.env.JWT_ACCESS_TTL ?? "15m";
 const REFRESH_TTL_REMEMBER = process.env.JWT_REFRESH_TTL ?? "30d";
 const REFRESH_TTL_SESSION = process.env.JWT_REFRESH_TTL_SHORT ?? "1d";
 
+const TTL_UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+
+/**
+ * Parses a human-readable TTL string ("15m", "30d", ...), as used by every
+ * JWT_*_TTL env var, into milliseconds. Falls back to 15 minutes if the
+ * string doesn't match the expected format, so a misconfigured env var
+ * degrades safely instead of throwing at boot.
+ */
+function parseTtlMs(ttl: string): number {
+  const match = /^(\d+)([smhd])$/.exec(ttl);
+  if (!match) return 15 * 60_000;
+  const value = Number(match[1]);
+  const unit = match[2];
+  return value * (TTL_UNIT_MS[unit] ?? 60_000);
+}
+
+/**
+ * `jsonwebtoken`'s `SignOptions.expiresIn` only accepts a `number` (seconds)
+ * or a narrow literal string type from the `ms` package that a runtime env
+ * var can never satisfy at the type level — so every TTL is resolved to
+ * whole seconds once here, which every version of the type accepts, instead
+ * of passing the raw env string straight into `jwt.sign`.
+ */
+function parseTtlSeconds(ttl: string): number {
+  return Math.round(parseTtlMs(ttl) / 1000);
+}
+
 export interface AccessTokenPayload {
   sub: string;
   role: string;
@@ -23,7 +50,7 @@ export interface RefreshTokenPayload {
 
 /** Short-lived token sent to the client and attached to every request. */
 export function signAccessToken(payload: AccessTokenPayload) {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: parseTtlSeconds(ACCESS_TTL) });
 }
 
 /**
@@ -33,20 +60,16 @@ export function signAccessToken(payload: AccessTokenPayload) {
  */
 export function signRefreshToken(payload: { sub: string; role: string }, rememberMe: boolean) {
   const jti = crypto.randomUUID();
+  const ttl = rememberMe ? REFRESH_TTL_REMEMBER : REFRESH_TTL_SESSION;
   const token = jwt.sign({ ...payload, jti }, REFRESH_SECRET, {
-    expiresIn: rememberMe ? REFRESH_TTL_REMEMBER : REFRESH_TTL_SESSION,
+    expiresIn: parseTtlSeconds(ttl),
   });
   return { token, jti };
 }
 
 export function refreshTtlMs(rememberMe: boolean): number {
   const ttl = rememberMe ? REFRESH_TTL_REMEMBER : REFRESH_TTL_SESSION;
-  const match = /^(\d+)([smhd])$/.exec(ttl);
-  if (!match) return 7 * 86400_000;
-  const value = Number(match[1]);
-  const unit = match[2];
-  const multiplier = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[unit] ?? 86_400_000;
-  return value * multiplier;
+  return parseTtlMs(ttl);
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {

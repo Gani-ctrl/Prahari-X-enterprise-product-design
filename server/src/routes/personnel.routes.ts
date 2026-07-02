@@ -62,7 +62,16 @@ const createSchema = z.object({
   certifications: z.array(z.string()).optional(),
 });
 
-function toPersonnelData(values: z.infer<typeof createSchema>) {
+// Generic over the caller's exact schema shape (rather than fixed to
+// `createSchema`) so this compiles correctly for BOTH call sites below:
+// the POST handler passes a full `createSchema` result (required fields
+// stay required), while the PUT handler passes a `updateSchema` result
+// (every field, including these, is optional via `.partial()`). Pinning
+// the parameter to `z.infer<typeof createSchema>` made the PUT call site
+// pass a type where those same fields are `string | undefined` where
+// `string` was required — this generic preserves whatever
+// optional/required shape the caller actually has instead.
+function toPersonnelData<T extends { certifications?: string[] }>(values: T) {
   const { certifications, ...rest } = values;
   return {
     ...rest,
