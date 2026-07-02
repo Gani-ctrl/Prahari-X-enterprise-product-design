@@ -1,0 +1,336 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   PRAHARI X — Design Tokens
+   A restrained, enterprise command-console palette. Dark-first.
+   No hacker green. No gratuitous gradients. 8px spacing. 24px card radius.
+   ========================================================================== */
+
+@theme {
+  /* ---- Surfaces ---- */
+  --color-base: #05070a;
+  --color-surface: #0b0e14;
+  --color-surface-2: #12161f;
+  --color-surface-3: #1a1f2b;
+  --color-surface-4: #232937;
+
+  /* ---- Borders ---- */
+  --color-border: #202634;
+  --color-border-strong: #2e3648;
+  --color-border-faint: #171b25;
+
+  /* ---- Text ---- */
+  --color-ink-0: #f4f6fb;
+  --color-ink-1: #d3d9e6;
+  --color-ink-2: #9aa4b8;
+  --color-ink-3: #6b7488;
+  --color-ink-4: #454c5c;
+
+  /* ---- Brand: Sentinel Tactical Green ----
+     Renamed from the original Sentinel Blue palette (Phase 7 visual
+     identity pass) — same token names so every existing
+     `[color:var(--color-sentinel-*)]` usage across the app repaints
+     automatically. A muted, HUD-phosphor-adjacent green, kept desaturated
+     enough to stay distinct from the brighter --color-success-* mint. */
+  --color-sentinel-50: #eef6f1;
+  --color-sentinel-200: #b7dbc4;
+  --color-sentinel-400: #5cb98c;
+  --color-sentinel-500: #39a06e;
+  --color-sentinel-600: #2c7d57;
+  --color-sentinel-700: #205c40;
+
+  /* ---- Signal Amber (priority / command accent) ---- */
+  --color-amber-300: #ffd27a;
+  --color-amber-400: #ffbf47;
+  --color-amber-500: #ffb020;
+  --color-amber-600: #db8f10;
+
+  /* ---- Status ---- */
+  --color-success-400: #4fe0a8;
+  --color-success-500: #2ecc8f;
+  --color-danger-400: #ff7a92;
+  --color-danger-500: #ff5470;
+  --color-warning-500: #ffb020;
+  --color-info-500: #7c8aa3;
+
+  /* ---- Data-viz series (muted, non-neon) ---- */
+  --color-viz-1: #39a06e;
+  --color-viz-2: #ffb020;
+  --color-viz-3: #7c8aa3;
+  --color-viz-4: #a276ff;
+  --color-viz-5: #ff5470;
+
+  /* ---- Radius ---- */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-card: 24px;
+  --radius-full: 9999px;
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ---- Steel (neutral tactical accent — HUD lines, brackets, dividers) ---- */
+  --color-steel-400: #7c8aa3;
+  --color-steel-500: #5b6a85;
+
+  /* ---- Role accents ----
+     Commander portal keys off Sentinel Blue; the Soldier portal keys off
+     Signal Amber. Same token system, different lead accent, so the two
+     experiences read as distinct without introducing off-palette colors. */
+  --color-command-accent: var(--color-sentinel-500);
+  --color-soldier-accent: var(--color-amber-500);
+
+  /* ---- Shadows ---- */
+  --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.03) inset, 0 20px 60px -20px rgba(0, 0, 0, 0.65);
+  --shadow-float: 0 24px 70px -24px rgba(0, 0, 0, 0.75);
+  --shadow-glow-sentinel: 0 0 0 1px rgba(57, 160, 110, 0.25), 0 0 32px -4px rgba(57, 160, 110, 0.35);
+  --shadow-glow-amber: 0 0 0 1px rgba(255, 176, 32, 0.25), 0 0 32px -4px rgba(255, 176, 32, 0.3);
+  --shadow-glow-success: 0 0 0 1px rgba(46, 204, 143, 0.25), 0 0 32px -4px rgba(46, 204, 143, 0.3);
+  --shadow-glow-danger: 0 0 0 1px rgba(255, 84, 112, 0.25), 0 0 32px -4px rgba(255, 84, 112, 0.3);
+
+  /* ---- Easing ---- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ==========================================================================
+   Base layer
+   ========================================================================== */
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-base);
+    color: var(--color-ink-0);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background: rgba(57, 160, 110, 0.35);
+    color: #ffffff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-sentinel-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-4);
+    border-radius: 999px;
+    border: 2px solid var(--color-base);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-4);
+  }
+}
+
+/* ==========================================================================
+   Reusable utility layer — command-console textures & motifs
+   ========================================================================== */
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  .bg-radial-fade {
+    background: radial-gradient(60% 60% at 50% 0%, rgba(57, 160, 110, 0.14), transparent 70%);
+  }
+
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .glass {
+    background: rgba(18, 22, 31, 0.6);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-strong {
+    background: rgba(11, 14, 20, 0.78);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Warm-tinted glass used exclusively in the Soldier portal, so the two
+     role experiences are legible as different products at a glance. */
+  .glass-soldier {
+    background: rgba(26, 20, 12, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 176, 32, 0.1);
+  }
+
+  /* A single, reusable "corner bracket" HUD treatment — the one recurring
+     tactical motif used across cards instead of ad hoc gradients per page. */
+  .hud-card {
+    position: relative;
+  }
+  .hud-card::before,
+  .hud-card::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+  }
+  .hud-card::before {
+    top: 10px;
+    left: 10px;
+    border-top: 1.5px solid var(--color-steel-400);
+    border-left: 1.5px solid var(--color-steel-400);
+  }
+  .hud-card::after {
+    bottom: 10px;
+    right: 10px;
+    border-bottom: 1.5px solid var(--color-steel-400);
+    border-right: 1.5px solid var(--color-steel-400);
+  }
+  .hud-card:hover::before,
+  .hud-card:hover::after {
+    opacity: 1;
+  }
+
+  /* One consistent "immersive" backdrop utility — layered radial glows +
+     grid + faint scan line — used instead of bespoke gradient stacks per
+     page. Cheap: only gradients + one translated element, no filters. */
+  .bg-tactical {
+    position: relative;
+    background:
+      radial-gradient(65% 50% at 15% 0%, rgba(57, 160, 110, 0.10), transparent 60%),
+      radial-gradient(50% 40% at 100% 20%, rgba(255, 176, 32, 0.06), transparent 60%),
+      var(--color-base);
+  }
+  .bg-tactical-soldier {
+    position: relative;
+    background:
+      radial-gradient(65% 50% at 85% 0%, rgba(255, 176, 32, 0.12), transparent 60%),
+      radial-gradient(50% 40% at 0% 20%, rgba(57, 160, 110, 0.05), transparent 60%),
+      var(--color-base);
+  }
+
+  .text-gradient-sentinel {
+    background: linear-gradient(180deg, #f4f6fb 0%, #b7dbc4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .card-elevated {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .divider-fade {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--color-border-strong), transparent);
+  }
+
+  .mono-tag {
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ==========================================================================
+   Keyframes
+   ========================================================================== */
+
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-radar-sweep { animation: radar-sweep 6s linear infinite; }
+.animate-pulse-ring { animation: pulse-ring 2.4s var(--ease-out-expo) infinite; }
+.animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
+.animate-marquee { animation: marquee 28s linear infinite; }
+.animate-scan-line { animation: scan-line 3.2s linear infinite; }
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 37%,
+    var(--color-surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}

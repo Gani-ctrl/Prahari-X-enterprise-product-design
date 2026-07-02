@@ -1,0 +1,545 @@
+// PRAHARI X — Database schema (Page 16 & 17 of the master PRD)
+// Uses SQLite for zero-config local development. SQLite has no native enum
+// type support in Prisma, so every field that would otherwise be an enum is
+// modeled as a String with the same default value and the same allowed
+// values enforced at the application layer (Zod schemas in each route).
+//
+// Allowed string values, for reference:
+//   Role:              commander | intelligence_officer | mission_planner | logistics_officer | administrator
+//   MissionStatus:     planning | active | paused | completed | aborted
+//   Priority:          critical | high | medium | low
+//   PersonnelStatus:   available | deployed | leave | medical
+//   AssetCategory:     vehicle | drone | weapon | medical | satellite
+//   AssetStatus:       operational | maintenance | deployed | decommissioned
+//   ThreatCategory:    cyber | drone | satellite | ground | signal
+//   ThreatSeverity:    critical | high | medium | low
+//   ThreatStatus:      active | monitoring | neutralized
+//   InventoryCategory: firearm | ammunition | tactical_gear | vehicle | drone
+//   InventoryStatus:   in_stock | low_stock | out_of_stock
+//   TrainingCategory:  combat | medical | technical | leadership | survival
+//   TrainingStatus:    upcoming | active | completed | archived
+//
+// Production datasource: PostgreSQL (Neon). These string-typed "enum-like"
+// fields were originally modeled this way because SQLite has no native enum
+// support; they are kept as-is on Postgres too so the application layer
+// (Zod schemas per route) remains the single source of truth and no model
+// shape changed during the SQLite -> PostgreSQL migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  passwordHash      String
+  role              String   @default("commander")
+  rank              String?
+  unit              String?
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?
+  avatarSeed        String
+  profileImageUrl   String?
+  createdAt         DateTime @default(now())
+  lastActiveAt      DateTime @default(now())
+
+  missionsCommanded Mission[]      @relation("MissionCommander")
+  notifications     Notification[]
+  chats             Chat[]
+  auditLogs         AuditLog[]
+  settings          Settings?
+  refreshTokens     RefreshToken[]
+  loginHistory      LoginHistory[]
+  comments          Comment[]
+
+  // --- Command & Control workflow (Commander-side "given by" relations) ---
+  assignmentsGiven  Assignment[]    @relation("AssignmentIssuedBy")
+  shiftsAssigned    ShiftSchedule[] @relation("ShiftAssignedBy")
+  leaveReviews      LeaveRequest[]  @relation("LeaveReviewedBy")
+  reportsReviewed   FieldReport[]   @relation("ReportReviewedBy")
+  badgesAwarded     Badge[]         @relation("BadgeAwardedBy")
+  documentsUploaded MissionDocument[] @relation("DocumentUploadedBy")
+  squadsCreated     Squad[]         @relation("SquadCreatedBy")
+
+  // Present only for role "soldier" — links this login to its own roster
+  // record, so the Soldier portal can scope every query to "my data".
+  personnelId       String?   @unique
+  personnel         Personnel? @relation(fields: [personnelId], references: [id])
+}
+
+// Persisted, revocable refresh tokens — one row per issued session. Storing
+// only a hash (never the raw token) so a DB leak doesn't hand out live
+// sessions. Rotated on every /auth/refresh call (old row revoked, new one
+// created) so a stolen refresh token has a single-use window.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  rememberMe Boolean   @default(false)
+  userAgent  String?
+  ip         String?
+  revoked    Boolean   @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+}
+
+// Every login attempt (success or failure) against a known account, for the
+// "active session monitoring" / "login history" surfaces in Settings.
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  success   Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model Settings {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  density             String  @default("comfortable")
+  accent              String  @default("sentinel")
+  missionUpdates      Boolean @default(true)
+  threatAlerts        Boolean @default(true)
+  personnelChanges    Boolean @default(false)
+  systemDigest        Boolean @default(true)
+}
+
+model Mission {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  name          String
+  description   String
+  region        String
+  priority      String        @default("medium")
+  status        String        @default("planning")
+  progress      Int           @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  commanderId   String
+  commander     User          @relation("MissionCommander", fields: [commanderId], references: [id])
+
+  objectives    Objective[]
+  logs          MissionLog[]
+  squad         PersonnelOnMission[]
+  equipment     AssetAssignment[]
+
+  // Optional named Squad leading this mission (distinct from the raw
+  // personnel roster above, which is kept for backward compatibility).
+  assignedSquadId String?
+  assignedSquad   Squad?    @relation(fields: [assignedSquadId], references: [id])
+
+  assignments   Assignment[]
+  patrolRoutes  PatrolRoute[]
+  documents     MissionDocument[]
+  fieldReports  FieldReport[]
+  shiftSchedules ShiftSchedule[]
+}
+
+model Objective {
+  id          String   @id @default(cuid())
+  missionId   String
+  mission     Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  status      String   @default("pending") // pending | in_progress | complete
+  dueDate     DateTime
+}
+
+model MissionLog {
+  id        String   @id @default(cuid())
+  missionId String
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  author    String
+  message   String
+  type      String   @default("info") // info | action | alert
+  timestamp DateTime @default(now())
+}
+
+model Personnel {
+  id                 String              @id @default(cuid())
+  name               String
+  rank               String
+  roleTitle          String
+  unit               String
+  status             String              @default("available")
+  healthScore        Int                 @default(100)
+  missionsCompleted  Int                 @default(0)
+  email              String
+  phone              String
+  joinedAt           DateTime            @default(now())
+  avatarSeed         String
+  location           String              @default("Unknown")
+  performanceScore   Int                 @default(70)
+  // JSON-encoded string[] — SQLite has no native array/list column type.
+  certifications     String              @default("[]")
+
+  missions           PersonnelOnMission[]
+  account            User?
+
+  // --- Command & Control workflow (soldier-side data) ---
+  squadMemberships   SquadMember[]
+  assignments        Assignment[]
+  fieldReports       FieldReport[]
+  shifts             ShiftSchedule[]
+  leaveRequests      LeaveRequest[]
+  badges             Badge[]
+  attendance         Attendance[]
+  squadsLed          Squad[]         @relation("SquadLeader")
+}
+
+model PersonnelOnMission {
+  id          String    @id @default(cuid())
+  missionId   String
+  personnelId String
+  mission     Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime  @default(now())
+
+  @@unique([missionId, personnelId])
+}
+
+model Asset {
+  id                  String        @id @default(cuid())
+  name                String
+  category            String
+  model               String
+  status              String        @default("operational")
+  location            String
+  condition           Int           @default(100)
+  lastMaintenanceDate DateTime      @default(now())
+  nextMaintenanceDate DateTime
+
+  missions            AssetAssignment[]
+  assignments         Assignment[]
+}
+
+model AssetAssignment {
+  id         String   @id @default(cuid())
+  missionId  String
+  assetId    String
+  mission    Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@unique([missionId, assetId])
+}
+
+model ThreatReport {
+  id             String   @id @default(cuid())
+  title          String
+  category       String
+  severity       String
+  region         String
+  description    String
+  status         String   @default("active")
+  aiConfidence   Int      @default(60)
+  source         String
+  recommendation String?
+  detectedAt     DateTime @default(now())
+}
+
+// Weapons & Ammunition catalog — bulk stock presentation/management, distinct
+// from Asset (individually-serialized, mission-assignable equipment).
+model InventoryItem {
+  id               String   @id @default(cuid())
+  name             String
+  category         String
+  spec             String
+  quantity         Int      @default(0)
+  reorderThreshold Int      @default(10)
+  status           String   @default("in_stock")
+  location         String
+  unitCost         Int      @default(0)
+  lastRestocked    DateTime @default(now())
+
+  assignments      Assignment[]
+}
+
+// Training & Readiness catalog — scheduled programs tracked at the
+// aggregate level; individual certifications live on Personnel.certifications.
+model TrainingProgram {
+  id               String   @id @default(cuid())
+  name             String
+  category         String
+  description      String
+  durationHours    Int      @default(8)
+  mandatory        Boolean  @default(false)
+  status           String   @default("upcoming")
+  enrolledCount    Int      @default(0)
+  completionRate   Int      @default(0)
+  nextSessionDate  DateTime @default(now())
+
+  assignments      Assignment[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // mission | threat | system | personnel
+  title     String
+  message   String
+  severity  String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Chat {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String // user | assistant
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  actor      String
+  action     String
+  target     String
+  ip         String
+  status     String // success | failed
+  timestamp  DateTime @default(now())
+  // Optional link back to the specific record this action was performed on —
+  // when set, this row also powers that record's per-entity "Activity" tab
+  // (Missions, Weapons, Assets, Threats, Training all use the same table).
+  entityType String?
+  entityId   String?
+}
+
+// Polymorphic comment thread, reused by every module that needs discussion
+// on a specific record (Missions, Weapons/Inventory, Assets, Threat Reports,
+// Training programs). `entityType` is one of:
+//   mission | inventory | asset | threat | training
+model Comment {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  editedAt   DateTime?
+
+  @@index([entityType, entityId])
+}
+
+// ============================================================================
+// Command & Control workflow — Commander-issued assignments, Squad/patrol
+// structure, and Soldier-submitted field reports. Kept deliberately
+// consolidated (a handful of discriminated tables rather than dozens of
+// near-identical ones) following the same `type` + polymorphic-relation
+// pattern already used above by AuditLog and Comment.
+// ============================================================================
+
+// Named unit a Commander organizes personnel into, with one designated team
+// leader. Distinct from the ad-hoc PersonnelOnMission roster — a Squad is a
+// standing structure that can be assigned to missions, patrol routes, and
+// shifts as a single unit.
+model Squad {
+  id            String   @id @default(cuid())
+  name          String
+  unit          String
+  leaderId      String?
+  leader        Personnel? @relation("SquadLeader", fields: [leaderId], references: [id])
+  createdById   String
+  createdBy     User     @relation("SquadCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+
+  members       SquadMember[]
+  missions      Mission[]
+  patrolRoutes  PatrolRoute[]
+}
+
+model SquadMember {
+  id          String   @id @default(cuid())
+  squadId     String
+  squad       Squad     @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  personnelId String
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([squadId, personnelId])
+}
+
+// A planned patrol for a mission and/or squad, made up of an ordered list of
+// waypoints and checkpoints (RoutePoint, discriminated by `kind`).
+model PatrolRoute {
+  id         String   @id @default(cuid())
+  name       String
+  missionId  String?
+  mission    Mission? @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  squadId    String?
+  squad      Squad?   @relation(fields: [squadId], references: [id])
+  region     String
+  status     String   @default("planned") // planned | active | completed
+  createdAt  DateTime @default(now())
+
+  points     RoutePoint[]
+}
+
+model RoutePoint {
+  id            String   @id @default(cuid())
+  patrolRouteId String
+  patrolRoute   PatrolRoute @relation(fields: [patrolRouteId], references: [id], onDelete: Cascade)
+  kind          String   // waypoint | checkpoint
+  sequence      Int
+  label         String
+  location      String
+  status        String   @default("pending") // pending | reached | skipped
+  reachedAt     DateTime?
+}
+
+// Umbrella for everything a Commander issues to an individual soldier:
+// weapons, ammunition, equipment, vehicles, drones, comm devices, medical
+// kits, protective gear, training programs, daily tasks, and emergency
+// assignments. `type` discriminates; the optional FKs let a weapon/vehicle/
+// training assignment link back to the real catalog record when relevant.
+model Assignment {
+  id                 String    @id @default(cuid())
+  type               String    // weapon | ammunition | equipment | vehicle | drone | comms | medical_kit | protective_gear | training | task | emergency
+  title              String
+  description        String?
+  quantity           Int?
+  priority           String    @default("medium")
+  status             String    @default("active") // active | completed | cancelled | returned
+  dueDate            DateTime?
+
+  personnelId        String
+  personnel          Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  missionId          String?
+  mission            Mission?  @relation(fields: [missionId], references: [id])
+  assetId            String?
+  asset              Asset?    @relation(fields: [assetId], references: [id])
+  inventoryItemId    String?
+  inventoryItem      InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  trainingProgramId  String?
+  trainingProgram    TrainingProgram? @relation(fields: [trainingProgramId], references: [id])
+
+  assignedById       String
+  assignedBy         User      @relation("AssignmentIssuedBy", fields: [assignedById], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  fieldReports       FieldReport[]
+}
+
+model ShiftSchedule {
+  id             String   @id @default(cuid())
+  personnelId    String
+  personnel      Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  missionId      String?
+  mission        Mission? @relation(fields: [missionId], references: [id])
+  shiftDate      DateTime
+  startTime      String   // "HH:mm"
+  endTime        String   // "HH:mm"
+  type           String   @default("patrol") // patrol | guard | rest | admin
+  assignedById   String
+  assignedBy     User     @relation("ShiftAssignedBy", fields: [assignedById], references: [id])
+  createdAt      DateTime @default(now())
+}
+
+model LeaveRequest {
+  id           String    @id @default(cuid())
+  personnelId  String
+  personnel    Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  reason       String
+  startDate    DateTime
+  endDate      DateTime
+  status       String    @default("pending") // pending | approved | rejected
+  reviewedById String?
+  reviewedBy   User?     @relation("LeaveReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+// Umbrella for everything a Soldier submits back to the Commander: daily
+// reports, mission progress updates, equipment/weapon/ammo/vehicle status,
+// medical requests, incident reports, emergency alerts, and mission
+// completion reports. `type` discriminates.
+model FieldReport {
+  id             String    @id @default(cuid())
+  type           String    // daily | mission_progress | equipment_condition | weapon_status | ammo_consumption | vehicle_status | medical_request | incident | emergency_alert | mission_completion
+  title          String
+  content        String
+  severity       String?   // critical | high | medium | low — mainly for incident/emergency_alert
+  status         String    @default("submitted") // submitted | acknowledged | resolved
+  attachmentUrl  String?
+
+  personnelId    String
+  personnel      Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  missionId      String?
+  mission        Mission?  @relation(fields: [missionId], references: [id])
+  assignmentId   String?
+  assignment     Assignment? @relation(fields: [assignmentId], references: [id])
+
+  reviewedById   String?
+  reviewedBy     User?     @relation("ReportReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+// Mission-linked media/documents — images, maps, PDF briefings. Modeled as
+// metadata + a URL (no binary upload pipeline in this build); a Commander
+// can link to an already-hosted file or a data URL from the client.
+model MissionDocument {
+  id           String   @id @default(cuid())
+  missionId    String
+  mission      Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  type         String   // image | pdf | map | briefing
+  title        String
+  url          String
+  uploadedById String
+  uploadedBy   User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Badge {
+  id           String   @id @default(cuid())
+  personnelId  String
+  personnel    Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  icon         String   @default("award") // lucide-react icon name
+  awardedById  String
+  awardedBy    User     @relation("BadgeAwardedBy", fields: [awardedById], references: [id])
+  awardedAt    DateTime @default(now())
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  personnelId String
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  date        DateTime
+  status      String   // present | absent | leave | late
+  createdAt   DateTime @default(now())
+
+  @@unique([personnelId, date])
+}
