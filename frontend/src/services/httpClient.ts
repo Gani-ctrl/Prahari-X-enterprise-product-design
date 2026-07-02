@@ -8,6 +8,23 @@ import { ApiError } from "./apiError";
 // ----------------------------------------------------------------------------
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
+// Render's free tier can cold-start a sleeping instance in tens of
+// seconds, so this is deliberately generous — the goal isn't a snappy
+// timeout, it's making sure a request NEVER hangs forever with no way for
+// the UI to recover (no spinner that spins indefinitely, no button stuck
+// disabled). 30s comfortably covers a cold start while still eventually
+// surfacing a clear, actionable error for a genuinely dead connection.
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/** Wraps `fetch` with a hard timeout via AbortController, converting an
+ * abort into the same shape of error a network failure already throws
+ * (see the `catch` below), so callers don't need to special-case it. */
+function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 const ACCESS_TOKEN_KEY = "prahari-x:access-token";
 const REFRESH_TOKEN_KEY = "prahari-x:refresh-token";
 
@@ -59,7 +76,7 @@ async function tryRefreshSession(): Promise<boolean> {
     const refreshToken = getStoredRefreshToken();
     if (!refreshToken) return false;
     try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      const res = await fetchWithTimeout(`${BASE_URL}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -90,12 +107,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetchWithTimeout(`${BASE_URL}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError("The request timed out. Check your connection and try again.", 0, "TIMEOUT");
+    }
     throw new ApiError("Could not reach the PRAHARI X API. Is the server running?", 0);
   }
 

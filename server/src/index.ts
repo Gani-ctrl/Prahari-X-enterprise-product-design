@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import compression from "compression";
 import { authRouter } from "./routes/auth.routes.js";
 import { missionsRouter } from "./routes/missions.routes.js";
 import { dashboardRouter } from "./routes/dashboard.routes.js";
@@ -23,6 +24,15 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { isSmtpConfigured } from "./lib/mailer.js";
 
 const app = express();
+
+// Render (and every similar PaaS) puts the app behind a reverse proxy, so
+// the raw socket connection is always the proxy's, not the real client's.
+// Without this, `req.ip` (used throughout for LoginHistory, AuditLog, and
+// RefreshToken records) would log the proxy's internal IP for every user,
+// and IP-keyed rate limiting below would bucket all traffic together behind
+// that same address. `1` = trust exactly one hop (the platform's own
+// load balancer) and read the real client IP from X-Forwarded-For.
+app.set("trust proxy", 1);
 
 // CLIENT_ORIGIN accepts one origin or a comma-separated list, so both the
 // production Vercel domain and Vercel's per-deploy preview URLs can be
@@ -48,6 +58,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(compression());
 app.use(express.json());
 app.use(morgan("dev"));
 

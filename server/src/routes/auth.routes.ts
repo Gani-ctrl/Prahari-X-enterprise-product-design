@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -13,6 +14,35 @@ import { ApiError } from "../middleware/errorHandler.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 
 export const authRouter = Router();
+
+// Credential-guessing throttle for the three unauthenticated, security-
+// sensitive endpoints (register/login/refresh). Keyed by client IP — this
+// relies on `app.set("trust proxy", 1)` in index.ts to see the real
+// client address behind Render's reverse proxy rather than one shared
+// proxy IP for every user. 20 attempts / 15 minutes is generous enough
+// that no legitimate user (including one who mistypes a password a few
+// times) is ever affected, while still shutting down brute-force attempts.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in a few minutes." },
+});
+
+// /refresh is called silently and automatically (httpClient.ts refreshes
+// the access token in the background, and can do so from multiple open
+// tabs), so it legitimately fires far more often per user than a login
+// attempt — a much higher ceiling than authLimiter avoids ever throttling
+// real usage while still bounding raw request volume against this
+// unauthenticated endpoint.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many session refresh attempts. Please sign in again." },
+});
 
 // ----------------------------------------------------------------------------
 // Simplified, submission-ready auth flow (email verification + OTP/forgot-
@@ -87,7 +117,7 @@ const registerSchema = z.object({
   portal: z.enum(["commander", "soldier"]),
 });
 
-authRouter.post("/register", async (req, res, next) => {
+authRouter.post("/register", authLimiter, async (req, res, next) => {
   try {
     const { name, email, password, portal } = registerSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -167,7 +197,7 @@ const loginSchema = z.object({
   portal: z.enum(["commander", "soldier"]),
 });
 
-authRouter.post("/login", async (req: AuthedRequest, res, next) => {
+authRouter.post("/login", authLimiter, async (req: AuthedRequest, res, next) => {
   try {
     const { email, password, rememberMe, portal } = loginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email } });
@@ -210,7 +240,7 @@ authRouter.post("/login", async (req: AuthedRequest, res, next) => {
 // ----------------------------------------------------------------------------
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 
-authRouter.post("/refresh", async (req: AuthedRequest, res, next) => {
+authRouter.post("/refresh", refreshLimiter, async (req: AuthedRequest, res, next) => {
   try {
     const { refreshToken } = refreshSchema.parse(req.body);
 

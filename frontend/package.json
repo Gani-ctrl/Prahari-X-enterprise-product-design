@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "PRAHARI X — AI Defense Operations Command Platform",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
