@@ -19,7 +19,7 @@ import { ActivityFeed } from "@/components/shared/ActivityFeed";
 import { missionsApi, personnelApi, assetsApi } from "@/services/api";
 import { toast } from "@/store/toastStore";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import type { Asset, Mission, Personnel } from "@/types";
+import type { Asset, Mission, Objective, Personnel } from "@/types";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 const TABS = [
@@ -80,9 +80,18 @@ export default function MissionDetailsPage() {
 
   async function toggleObjective(objId: string) {
     if (!mission) return;
-    const objectives = mission.objectives.map((o) =>
-      o.id === objId ? { ...o, status: o.status === "complete" ? "in_progress" : "complete" as const } : o
-    );
+    // A `const` assertion can't be applied to a ternary expression itself
+    // (TS1355), and applying it only to one branch lets the other branch
+    // widen to plain `string`, which no longer satisfies `Objective["status"]`.
+    // Assigning the ternary's result to a variable explicitly typed as
+    // `Objective["status"]` gives both branches that contextual type
+    // instead, so "in_progress" and "complete" stay literal without any
+    // assertion at all.
+    const objectives = mission.objectives.map((o) => {
+      if (o.id !== objId) return o;
+      const nextStatus: Objective["status"] = o.status === "complete" ? "in_progress" : "complete";
+      return { ...o, status: nextStatus };
+    });
     const updated = await missionsApi.update(mission.id, { objectives });
     setMission(updated);
   }

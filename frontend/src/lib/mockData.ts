@@ -269,9 +269,9 @@ export function seedMissions(personnel: Personnel[], assets: Asset[]): Mission[]
       endDate: end.toISOString(),
       progress: [20, 45, 68, 100, 55, 80, 30, 92, 15, 60][i] ?? 50,
       objectives: [
-        { id: `${i}-o1`, title: "Establish forward observation post", status: "complete", dueDate: start.toISOString() },
-        { id: `${i}-o2`, title: "Secure perimeter and supply corridor", status: i % 2 === 0 ? "complete" : "in_progress", dueDate: end.toISOString() },
-        { id: `${i}-o3`, title: "Coordinate extraction / handoff", status: "pending", dueDate: end.toISOString() },
+        { id: `${i}-o1`, title: "Establish forward observation post", description: "Deploy reconnaissance team and establish the initial observation point.", status: "complete", dueDate: start.toISOString() },
+        { id: `${i}-o2`, title: "Secure perimeter and supply corridor", description: "Secure the operational perimeter and maintain the logistics corridor.", status: i % 2 === 0 ? "complete" : "in_progress", dueDate: end.toISOString() },
+        { id: `${i}-o3`, title: "Coordinate extraction / handoff", description: "Plan and execute a controlled handoff or extraction at mission close.", status: "pending", dueDate: end.toISOString() },
       ],
       squadIds: squad,
       equipmentIds: equipment,
