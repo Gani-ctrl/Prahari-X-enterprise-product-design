@@ -34,6 +34,26 @@ can so there's no guesswork.
 
 ---
 
+## Frontend build notes (cinematic intro)
+
+The landing page's cinematic intro (`frontend/src/components/intro/`) has no
+deployment implications beyond what's already true of the rest of the
+frontend, but worth stating explicitly since it's the newest part of the
+build:
+
+- **No WebGL/Three.js dependency.** An earlier version of the intro used
+  React Three Fiber; it was rebuilt as pure DOM/CSS + GSAP + Motion, so
+  `frontend/package.json` carries no `three`/`@react-three/*` packages and
+  the Vercel build has no GPU/WebGL-specific behavior to worry about.
+- **No audio files to host.** The intro's background score is fully
+  synthesized via the Web Audio API at runtime — there's no `.mp3`/`.wav`
+  asset in `frontend/public/` for the build to bundle or for you to upload
+  anywhere.
+- Nothing here changes the build/install commands in `frontend/vercel.json`
+  or the environment variables below.
+
+---
+
 ## 0. One thing to fix before you push to git
 
 `server/.env` (your real local file, not `.env.example`) has a commented-out

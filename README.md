@@ -83,7 +83,7 @@ Both portals are React Router branches guarded by the same two components: `Prot
 | Build tool | Vite 6 |
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite`), custom CSS design tokens |
 | Component primitives | Radix UI (`react-dialog`, `react-tabs`, `react-tooltip`, `react-dropdown-menu`, `react-select`, `react-switch`, `react-checkbox`) for every primitive that needs correct focus/keyboard/ARIA behavior; `react-avatar` and `react-progress` are installed but not currently used (Avatar and ProgressBar are custom-built instead) |
-| Animation | Motion (`motion/react`, the successor to Framer Motion) for all component/page animation; Lenis for smooth scrolling on the marketing page; GSAP is an installed dependency reserved for future timeline-based work but not currently wired into any component |
+| Animation | Motion (`motion/react`, the successor to Framer Motion) for all component/page animation; Lenis for smooth scrolling on the marketing page; GSAP drives the cinematic landing intro's phase timeline, smoke drift, and title-reveal sequence (`components/intro/`, see [Cinematic Landing Intro](#features) below) |
 | Routing | React Router DOM v6 |
 | State management | Zustand (auth, theme, sidebar, notifications, filters, current mission, user prefs, toasts) |
 | Forms & validation | React Hook Form + `@hookform/resolvers` + Zod |
@@ -168,12 +168,19 @@ prahari-x/
 │       │   ├── layout/             Sidebar, Topbar, ProfileMenu, NotificationsPanel,
 │       │   │                      SoldierSidebar, SoldierTopbar
 │       │   ├── graphics/           OrbitHero, RadarGraphic — bespoke SVG/Motion visuals
+│       │   ├── intro/              Cinematic landing intro: CinematicIntro.tsx
+│       │   │                      (GSAP phase timeline), BootOverlay, TitleReveal,
+│       │   │                      HUDOverlay, SmokeLayer, RadarSweep, plus
+│       │   │                      useIntroAudio (synthesized Web Audio score) and
+│       │   │                      useDeviceTier — pure DOM/CSS/GSAP/Motion, no WebGL
 │       │   └── shared/             CommentsPanel, ActivityFeed, EntityDetailDrawer
 │       │                          (reused across every module that needs discussion
 │       │                          threads or an activity/audit tab)
 │       ├── layouts/                AppLayout (Commander shell), SoldierLayout, AuthLayout
 │       ├── pages/                  One folder per module (see Features below):
-│       │                          landing, auth, dashboard, assignments,
+│       │                          landing (IntroLandingPage wraps the cinematic
+│       │                          intro around the unmodified LandingPage), auth,
+│       │                          dashboard, assignments,
 │       │                          operations-map, analytics, squads, approvals,
 │       │                          operations, intelligence, assets, weapons,
 │       │                          training, units, fleet, medical-comms,
@@ -364,6 +371,9 @@ Status/category/priority filters across every module's list view, backed by a sh
 ### Real-Time Sync (Polling-Based)
 No WebSocket server is wired up (see [Future Improvements](#future-improvements)); instead, a shared `usePolling` hook refetches on an interval and whenever the browser tab regains focus/visibility, so Commander assignments and Soldier reports show up on the other portal without a manual reload.
 
+### Cinematic Landing Intro
+A ~6-second, fullscreen cinematic boot sequence plays before the marketing homepage (`components/intro/`, mounted by `pages/landing/IntroLandingPage.tsx` in front of the otherwise-untouched `LandingPage`): a black-void system boot, layered CSS/GSAP "smoke," a tactical grid, radar sweep, and classified telemetry text, then a GSAP-driven title reveal (parting smoke, rotating light rays, a metallic sheen sweep, and a brief chromatic-glitch pass) for "PRAHARI X," followed by a set of holographic-green status HUD panels and a "Scroll to Enter" prompt. A fully synthesized Web Audio cinematic score (tense pad, distant pulse, wind, rumble — no audio files, so nothing to host) starts automatically and fades in lockstep with the same scroll progress that dissolves the intro into the real homepage; scrolling back up re-hides the site navigation and brings the score back, and the Skip button drives that identical scroll-based transition rather than a separate shortcut. Deliberately built as pure DOM/CSS + GSAP + Motion — no WebGL, Three.js, or GLTF assets — after an earlier, more ambitious React Three Fiber version proved too heavy and build-fragile for this project's constraints (see `EXPLAINER.md`, Q4 and Q7).
+
 ### Responsive Design
 Tailwind-based responsive layouts across both portals, with a collapsible sidebar and mobile-aware navigation.
 
@@ -394,6 +404,8 @@ Route-level code splitting (`React.lazy` per page), a CDN-loaded map library tha
 **One design system, many module "identities."** With over 20 distinct feature modules (Operations, Intelligence, Assets, Weapons, Training, Fleet, Medical & Comms, Base & Emergency, Situation Room, and more), the risk was either visual monotony or a system that felt like ten different products stitched together. The resolution was strict separation of what varies (page layout, iconography, one signature visual per page) from what's fixed (color tokens, spacing, radius, and the shared component primitives in `components/ui`) — every module is built from the same 20-odd primitives, but no two modules look interchangeable.
 
 **Keeping the frontend genuinely swappable between mock and real data.** Early development needed the UI to be explorable with zero backend setup, but the finished product needed every page reading live from PostgreSQL with no code changes in between. `services/api.ts` is the single point every page imports from; it re-exports either the `localStorage`-backed `mockApi.ts` or the `fetch`-backed `realApi.ts` based on one environment variable, so the migration from "demo mode" to "production mode" touched exactly one file, not every page.
+
+**An immersive cinematic intro that still had to build reliably.** The landing intro went through a real scope correction: an earlier version was built on React Three Fiber/Three.js — a full WebGL battlefield scene, a first-person weapon rig, postprocessing effects — but that added real weight and fragility (heavy dependencies, WebGL-specific edge cases) for a submission that needed to build and run predictably every time, and the environment this was built in has no way to actually execute `npm run build` to verify a change before shipping it. The resolution was a deliberate rewrite to pure DOM/CSS, GSAP, and Motion: layered blurred-gradient "smoke," a GSAP timeline for phase sequencing and the title reveal, and a fully synthesized Web Audio cinematic score (so there's no binary audio asset to fetch or host either). Every change since has been verified the only way possible without a build step — careful manual re-reading of each file against the actual library APIs, plus repo-wide greps for dangling references — rather than by compiling.
 
 **Migrating the database engine without touching the schema.** Moving from local SQLite to production PostgreSQL (for Neon/Render/Vercel deployment) had to preserve every model, field, and relationship exactly — including getting foreign-key `onDelete` behavior (`CASCADE` vs `RESTRICT` vs `SET NULL`) correct across all 44 relations, which required auditing every `@relation` annotation in `schema.prisma` individually rather than assuming a single default.
 
