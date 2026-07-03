@@ -3,48 +3,56 @@ import { AICore } from "./AICore";
 import { CoreLabels } from "./CoreLabels";
 
 // ----------------------------------------------------------------------------
-// Composes the AI Core with its ring of floating labels. Both boxes below
-// are centered with the exact same technique — `left: 50%; top: 50%;
-// transform: translate(-50%, -50%)` — plus the exact same small upward
-// offset, so they share one transform origin rather than each being
-// centered its own way (the reactor box previously used `inset-0`
-// edge-anchoring while the labels box used left/top/translate; visually
-// identical at rest, but two different mechanisms, and only one of them
-// could carry the upward offset cleanly). Now there is exactly one shared
-// origin point, used by both.
+// Composes the AI Core with its ring of floating labels.
 //
-// Inside AICore.tsx's single <Canvas>, the globe, glass shell, every
-// rotating ring, both particle fields, the volumetric beam, and the
-// projected platform all live in one Three.js scene graph rooted at the
-// same world origin (0,0,0) — nothing in there is positioned
-// independently; only individual layers ROTATE around that shared origin
-// (see AICore.tsx / TacticalGlobe.tsx / OrbitRings.tsx). This CSS
-// transform is what places that single shared origin on screen. The
-// labels box uses the identical transform purely so its connector lines
-// stay anchored to the globe's edge as that shared origin moves — it
-// doesn't affect the reactor's own rendering at all.
+// Root-cause centering fix: the previous technique sized these boxes with
+// `width: 100vw` / `height: 100vh` and centered them with
+// `left: 50%; top: 50%; transform: translate(-50%, ...)`. That is NOT
+// guaranteed to equal the true center of the page: `vw`/`vh` are defined
+// against the browser's initial containing block (which includes the
+// vertical scrollbar's width when one is present), while this element's
+// actual positioned ancestor renders at the DOCUMENT's content width
+// (scrollbar excluded). Whenever those two widths differ -- which varies
+// by browser, OS scrollbar style, page content height, and can differ
+// between local dev and a production deployment -- a box sized in `vw`
+// and centered by translating half of its OWN (mismatched) width no
+// longer lands on the parent's true center. It only ever looked centered
+// "by visual guess," not by construction.
+//
+// The fix removes `vw`/`vh` and `transform` from the centering math
+// entirely:
+//   - The reactor's Canvas wrapper (SCENE_TRANSFORM) is simply
+//     `position: absolute; inset: 0;` -- it exactly fills its positioned
+//     ancestor (which is itself full-bleed all the way up to the intro
+//     root -- see CinematicIntro.tsx), so its horizontal AND vertical
+//     center is, by construction, exactly the parent's center. No
+//     percentage math, no translate, nothing that can drift.
+//   - The labels' smaller reference box (LABELS_TRANSFORM) still needs a
+//     defined size (it's intentionally smaller than the full page, so the
+//     label ring's radius reads as a sensible fraction of the reactor's
+//     visual footprint rather than the whole viewport), but is centered
+//     with `inset: 0; margin: auto;` instead of `left/top + translate` --
+//     the classic scrollbar-immune absolute-centering technique, where
+//     the browser itself computes (parentSize - ownSize) / 2 from the
+//     PARENT's real rendered box, not from a viewport unit.
+//
+// Both boxes now resolve to the exact same, zero-offset center point --
+// the true geometric center of the page -- so a vertical line through the
+// globe's center passes through that same point the title's own
+// (independently, flex-centered) horizontal midpoint sits on.
 // ----------------------------------------------------------------------------
-
-// Shift the whole scene up ~9% of viewport height so the globe sits
-// visually above the PRAHARI X title instead of at dead screen-center.
-const VERTICAL_OFFSET = "9vh";
 
 const SCENE_TRANSFORM: CSSProperties = {
   position: "absolute",
-  left: "50%",
-  top: "50%",
-  width: "100vw",
-  height: "100vh",
-  transform: `translate(-50%, calc(-50% - ${VERTICAL_OFFSET}))`,
+  inset: 0,
 };
 
 const LABELS_TRANSFORM: CSSProperties = {
   position: "absolute",
-  left: "50%",
-  top: "50%",
+  inset: 0,
+  margin: "auto",
   width: "min(78vw, 78vh, 900px)",
   height: "min(78vw, 78vh, 900px)",
-  transform: `translate(-50%, calc(-50% - ${VERTICAL_OFFSET}))`,
 };
 
 interface CoreStageProps {
