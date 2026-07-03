@@ -22,6 +22,19 @@ import { OrbitRings } from "./OrbitRings";
 // Fresnel shader already used throughout TacticalGlobe/OrbitRings/
 // HolographicPlatform/VolumetricBeam — no screen-space bloom pass needed.
 //
+// This component's own root div is `h-full w-full` — it has no opinion on
+// its own size. CoreStage.tsx is what makes that resolve to the FULL
+// viewport now (`absolute inset-0`, no width/height cap), not a small
+// `min(56vw, 56vh, 640px)` box like before. That box was the other real
+// source of "a visible square": a <canvas> element clips its own drawing
+// to its own box no matter how transparent the background is, so any ring
+// sized to extend past that box's edge was being hard-cut there. With a
+// fullscreen canvas, the camera below is framed with extra headroom
+// (fov 40 / distance 9.5) so the whole ring system — including the
+// outermost rings, which intentionally reach out much further than the
+// globe itself — sits comfortably inside the frustum with room to spare,
+// rather than right up against a visible edge of any kind.
+//
 // Layer stack, bottom to top:
 //   1. HolographicPlatform — ground disc + 4 concentric rings + energy-flow
 //      dashes + 2 ripple waves. Fixed in place, never rotates as a whole.
@@ -54,13 +67,13 @@ export function AICore() {
     <div className="h-full w-full">
       <Canvas
         dpr={[1, 1.8]}
-        camera={{ fov: 32, position: [0, 0, 9] }}
+        camera={{ fov: 40, position: [0, 0, 9.5] }}
         gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
           gl.setClearColor("#000000", 0);
         }}
       >
-        <fog attach="fog" args={[AI_COLORS.base, 5, 13]} />
+        <fog attach="fog" args={[AI_COLORS.base, 6, 16]} />
         <ambientLight intensity={0.4} color={AI_COLORS.glow700} />
         <pointLight position={[0, 0, 4]} intensity={6} color={AI_COLORS.glow400} distance={12} decay={2} />
         <pointLight position={[-3, 2, 3]} intensity={1.5} color={AI_COLORS.glow300} distance={10} decay={2} />
