@@ -67,7 +67,7 @@ export const BOOT_HEADER = { eyebrow: "PRAHARI X", label: "BOOT SEQUENCE" };
 /** The classified intelligence widget under the boot terminal — a small,
  * subtly-animating world-node visualization, not a soldier/map hero. */
 export const NODE_WIDGET = {
-  id: "PX-CORE_v7.3.2",
+  id: "PX-CORE_V7.3.2",
   globalNodes: 12,
   active: 12,
 };

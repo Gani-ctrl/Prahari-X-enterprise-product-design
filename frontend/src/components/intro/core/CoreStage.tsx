@@ -15,7 +15,10 @@ interface CoreStageProps {
 export function CoreStage({ labelsVisible }: CoreStageProps) {
   return (
     <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: "min(78vw, 78vh, 900px)", height: "min(78vw, 78vh, 900px)" }}>
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{ width: "min(56vw, 56vh, 640px)", height: "min(56vw, 56vh, 640px)" }}
+      >
         <AICore />
       </div>
       <CoreLabels visible={labelsVisible} />

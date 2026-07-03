@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { gsap } from "gsap";
 import { AtmosphereCanvas } from "./AtmosphereCanvas";
 import { AtmosphereOverlays } from "./AtmosphereOverlays";
@@ -176,25 +176,49 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
   const showScrollHint = phase === "ready" || phase === "dissolving";
   const showControls = phase === "ready" || phase === "dissolving";
 
+  // Whole-HUD mouse tilt: reads the --px/--py custom properties
+  // useCursorParallax writes on rootRef and applies a subtle perspective
+  // rotate. Deliberately applied via TWO separate wrapper divs (one before
+  // the AI Core, one after) rather than a single wrapper around
+  // everything — the AI Core sits between them, untouched by this
+  // transform, so cursor movement can never rotate/displace the reactor
+  // itself while every other layer (atmosphere, boot terminal, HUD stack,
+  // title) keeps tilting exactly as before.
+  const tiltStyle: CSSProperties = {
+    transform: "perspective(1400px) rotateX(calc(var(--py, 0) * -6deg)) rotateY(calc(var(--px, 0) * 8deg))",
+    transformStyle: "preserve-3d",
+    willChange: "transform",
+  };
+
   return (
     <div ref={rootRef} className="absolute inset-0 h-full w-full overflow-hidden bg-black">
-      {/* Pure black void with a single blinking cursor — nothing else is on
-          screen until the boot terminal starts. */}
-      {phase === "void" && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="ai-void-cursor h-6 w-3" style={{ backgroundColor: "#2eea82" }} />
-          <style>{`
-            @keyframes ai-void-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-            .ai-void-cursor { animation: ai-void-blink 1s step-end infinite; }
-          `}</style>
-        </div>
-      )}
+      <div className="absolute inset-0 h-full w-full" style={tiltStyle}>
+        {/* Pure black void with a single blinking cursor — nothing else is on
+            screen until the boot terminal starts. */}
+        {phase === "void" && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="ai-void-cursor h-6 w-3" style={{ backgroundColor: "#2eea82" }} />
+            <style>{`
+              @keyframes ai-void-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+              .ai-void-cursor { animation: ai-void-blink 1s step-end infinite; }
+            `}</style>
+          </div>
+        )}
 
-      <div style={{ opacity: showAtmosphere ? 1 : 0, transition: "opacity 1.4s ease" }}>
-        <AtmosphereOverlays />
-        <AtmosphereCanvas tier={tier} />
+        <div style={{ opacity: showAtmosphere ? 1 : 0, transition: "opacity 1.4s ease" }}>
+          <AtmosphereOverlays />
+          <AtmosphereCanvas tier={tier} />
+        </div>
       </div>
 
+      {/* AI Core: intentionally NOT inside either tilted wrapper above/below.
+          Cursor interaction must never move or rotate the reactor as a
+          whole — only its own internal rings/globe animate (see
+          core/TacticalGlobe.tsx, core/OrbitRings.tsx) — so it's rendered
+          here as a plain, always-centered sibling instead. It still paints
+          in the same stacking position as before (after the atmosphere,
+          before the HUD columns/title), just without inheriting their
+          tilt. */}
       {showCore && (
         <div
           className="absolute inset-0 flex items-center justify-center"
@@ -212,51 +236,53 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
         </div>
       )}
 
-      {/* Left column: boot terminal + classified node widget, encryption
-          progress pinned to the bottom — one flex column so nothing needs
-          hand-tuned pixel offsets to stack correctly. */}
-      <div className="absolute inset-x-4 top-4 bottom-4 flex flex-col justify-between sm:inset-x-8 sm:top-8 sm:bottom-8">
-        <div className="flex flex-col items-start gap-4">
-          <BootTerminal active={showTerminal} bootStarted={bootStarted} onChar={playBootBeep} />
-          <NodeWidget active={showTerminal && bootStarted} />
+      <div className="absolute inset-0 h-full w-full" style={tiltStyle}>
+        {/* Left column: boot terminal + classified node widget, encryption
+            progress pinned to the bottom — one flex column so nothing needs
+            hand-tuned pixel offsets to stack correctly. */}
+        <div className="absolute inset-x-4 top-4 bottom-4 flex flex-col justify-between sm:inset-x-8 sm:top-8 sm:bottom-8">
+          <div className="flex flex-col items-start gap-4">
+            <BootTerminal active={showTerminal} bootStarted={bootStarted} onChar={playBootBeep} />
+            <NodeWidget active={showTerminal && bootStarted} />
+          </div>
+          <div>
+            <EncryptionProgress active={showEncryption} />
+          </div>
         </div>
-        <div>
-          <EncryptionProgress active={showEncryption} />
+
+        {/* Right column: stacked tactical HUD, distributed top-to-bottom. */}
+        <div className="absolute right-4 top-4 bottom-20 flex flex-col items-end justify-between sm:right-8 sm:top-8 sm:bottom-24">
+          <MissionStatusPanel active={showHudStack} delay={0} />
+          <SystemHealthPanel active={showHudStack} delay={0.15} />
+          <SignalStrengthPanel active={showHudStack} delay={0.3} />
+          <SystemCheckPanel active={showHudStack} delay={0.45} />
         </div>
+
+        <TitleReveal showTitle={showTitle} showScrollHint={showScrollHint} />
+
+        {/* Mute + Skip — always in the same corner, only surfaced once the
+            auto-sequence reaches "ready", matching the previous intro's
+            control-reveal timing exactly. */}
+        {showControls && (
+          <div className="pointer-events-auto absolute bottom-4 right-4 flex items-center gap-2 sm:bottom-6 sm:right-8">
+            <button
+              type="button"
+              onClick={toggleMuted}
+              className="glass flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
+              aria-label={muted ? "Unmute intro audio" : "Mute intro audio"}
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="glass mono-tag flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-wider text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
+            >
+              <SkipForward className="h-3.5 w-3.5" /> Skip
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Right column: stacked tactical HUD, distributed top-to-bottom. */}
-      <div className="absolute right-4 top-4 bottom-20 flex flex-col items-end justify-between sm:right-8 sm:top-8 sm:bottom-24">
-        <MissionStatusPanel active={showHudStack} delay={0} />
-        <SystemHealthPanel active={showHudStack} delay={0.15} />
-        <SignalStrengthPanel active={showHudStack} delay={0.3} />
-        <SystemCheckPanel active={showHudStack} delay={0.45} />
-      </div>
-
-      <TitleReveal showTitle={showTitle} showScrollHint={showScrollHint} />
-
-      {/* Mute + Skip — always in the same corner, only surfaced once the
-          auto-sequence reaches "ready", matching the previous intro's
-          control-reveal timing exactly. */}
-      {showControls && (
-        <div className="pointer-events-auto absolute bottom-4 right-4 flex items-center gap-2 sm:bottom-6 sm:right-8">
-          <button
-            type="button"
-            onClick={toggleMuted}
-            className="glass flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
-            aria-label={muted ? "Unmute intro audio" : "Mute intro audio"}
-          >
-            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="glass mono-tag flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-wider text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
-          >
-            <SkipForward className="h-3.5 w-3.5" /> Skip
-          </button>
-        </div>
-      )}
     </div>
   );
 }
