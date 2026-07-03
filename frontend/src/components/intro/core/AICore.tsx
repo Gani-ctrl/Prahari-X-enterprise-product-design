@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -7,6 +7,75 @@ import { HolographicPlatform } from "./HolographicPlatform";
 import { VolumetricBeam } from "./VolumetricBeam";
 import { TacticalGlobe } from "./TacticalGlobe";
 import { OrbitRings } from "./OrbitRings";
+
+// ----------------------------------------------------------------------------
+// Responsive camera framing -- the one place the reactor's on-screen SIZE is
+// controlled, so it's the one place that needs to explicitly derive from the
+// actual viewport rather than an assumption baked in at one window size.
+//
+// A perspective camera's vertical field of view fixes the reactor's on-screen
+// size as a constant FRACTION OF CANVAS HEIGHT, regardless of the canvas's
+// actual pixel dimensions -- that part is already viewport-size-independent
+// by construction. What a plain fixed `fov` does NOT do is anchor to
+// min(width, height): it always anchors to height alone. On an ordinary
+// landscape/desktop window that's fine (height is usually the smaller
+// dimension anyway), but on a narrower/taller viewport -- or if the visible
+// layout viewport's effective CSS-pixel dimensions shift for any reason,
+// including a browser zoom level change -- height-only anchoring can make
+// the reactor read as too large relative to whichever dimension is actually
+// the tighter constraint.
+//
+// BASE_FOV_DEG (40) and CAMERA_DISTANCE (9.5) are unchanged from before --
+// they are the same reference framing already tuned for the reactor's look,
+// not new "magic numbers." `fovForAspect` only WIDENS that base vertical FOV,
+// and only when the viewport is taller than it is wide (aspect < 1), so that
+// the resulting frustum still anchors to min(width, height) instead of
+// silently anchoring to height alone. On every ordinary desktop/laptop
+// window (aspect >= 1) this resolves to exactly the original 40, so the
+// existing, already-tuned composition is pixel-for-pixel unchanged there.
+//
+// The aspect ratio itself is measured live from `window.innerWidth` /
+// `window.innerHeight` -- the actual viewport dimensions -- and re-measured
+// on every `resize` event plus every `visualViewport` resize event (the
+// latter fires for pinch-zoom/browser-zoom-driven viewport changes that a
+// plain `window.resize` listener can miss in some browsers), so the camera's
+// framing is actively recomputed from the live viewport rather than only
+// ever reflecting whatever size happened to be current when the Canvas was
+// first created.
+// ----------------------------------------------------------------------------
+
+const BASE_FOV_DEG = 40;
+const CAMERA_DISTANCE = 9.5;
+
+function fovForAspect(baseFovDeg: number, aspect: number): number {
+  if (!Number.isFinite(aspect) || aspect <= 0 || aspect >= 1) return baseFovDeg;
+  // Widen the vertical FOV so the horizontal frustum this produces (which is
+  // verticalFrustum * aspect) matches what the BASE fov would already give
+  // at aspect === 1 -- i.e. re-anchor to width (the smaller dimension here)
+  // instead of height.
+  const baseFovRad = (baseFovDeg * Math.PI) / 180;
+  const widenedFovRad = 2 * Math.atan(Math.tan(baseFovRad / 2) / aspect);
+  return (widenedFovRad * 180) / Math.PI;
+}
+
+function useViewportAspect(): number {
+  const [aspect, setAspect] = useState(() => (typeof window === "undefined" ? 16 / 9 : window.innerWidth / window.innerHeight));
+
+  useEffect(() => {
+    function measure() {
+      setAspect(window.innerWidth / window.innerHeight);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  return aspect;
+}
 
 // Polish-pass fake "atmospheric glow" halo: a single large, soft,
 // additive-blended sphere sitting behind the globe. With no EffectComposer
@@ -68,10 +137,11 @@ function DustAtmosphere() {
 // to its own box no matter how transparent the background is, so any ring
 // sized to extend past that box's edge was being hard-cut there. With a
 // fullscreen canvas, the camera below is framed with extra headroom
-// (fov 40 / distance 9.5) so the whole ring system -- including the
-// outermost rings, which intentionally reach out much further than the
-// globe itself -- sits comfortably inside the frustum with room to spare,
-// rather than right up against a visible edge of any kind.
+// (base fov 40 / distance 9.5, aspect-compensated per `fovForAspect` above)
+// so the whole ring system -- including the outermost rings, which
+// intentionally reach out much further than the globe itself -- sits
+// comfortably inside the frustum with room to spare, rather than right up
+// against a visible edge of any kind, at any viewport size or aspect.
 //
 // Layer stack, bottom to top:
 //   1. HolographicPlatform -- ground disc + 4 concentric rings + energy-flow
@@ -104,9 +174,9 @@ function DustAtmosphere() {
 // a single ROOT_GROUP whose position is explicitly [0, 0, 0] -- not
 // "effectively zero because nothing sets it," but a literal, auditable
 // identity transform, so there is exactly one place to check for any
-// future accidental offset. The camera is created at [0, 0, 9.5] with no
-// rotation of its own, which already points it at the world origin by
-// construction (a camera with identity rotation looks down its local -Z
+// future accidental offset. The camera is created at [0, 0, CAMERA_DISTANCE]
+// with no rotation of its own, which already points it at the world origin
+// by construction (a camera with identity rotation looks down its local -Z
 // axis, and with X = Y = 0 that axis passes exactly through (0,0,0)) --
 // `camera.lookAt(0, 0, 0)` below makes that explicit instead of relying on
 // the implicit default, so the projection center is provably, not just
@@ -119,11 +189,14 @@ function DustAtmosphere() {
 // ----------------------------------------------------------------------------
 
 export function AICore() {
+  const aspect = useViewportAspect();
+  const fov = fovForAspect(BASE_FOV_DEG, aspect);
+
   return (
     <div className="h-full w-full">
       <Canvas
         dpr={[1, 1.8]}
-        camera={{ fov: 40, position: [0, 0, 9.5] }}
+        camera={{ fov, position: [0, 0, CAMERA_DISTANCE] }}
         gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
         onCreated={({ gl, camera }) => {
           gl.setClearColor("#000000", 0);
