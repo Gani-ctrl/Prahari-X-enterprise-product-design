@@ -34,23 +34,46 @@ can so there's no guesswork.
 
 ---
 
-## Frontend build notes (cinematic intro)
+## Frontend build notes (cinematic intro / AI Core reactor)
 
-The landing page's cinematic intro (`frontend/src/components/intro/`) has no
-deployment implications beyond what's already true of the rest of the
-frontend, but worth stating explicitly since it's the newest part of the
-build:
+The landing page's cinematic intro (`frontend/src/components/intro/`) went
+through two rewrites over the course of this project — an early React Three
+Fiber version, then a pure DOM/CSS + GSAP rebuild, then a return to React
+Three Fiber for the current "AI Core" holographic reactor (`intro/core/`).
+The **current** state, accurately:
 
-- **No WebGL/Three.js dependency.** An earlier version of the intro used
-  React Three Fiber; it was rebuilt as pure DOM/CSS + GSAP + Motion, so
-  `frontend/package.json` carries no `three`/`@react-three/*` packages and
-  the Vercel build has no GPU/WebGL-specific behavior to worry about.
-- **No audio files to host.** The intro's background score is fully
-  synthesized via the Web Audio API at runtime — there's no `.mp3`/`.wav`
-  asset in `frontend/public/` for the build to bundle or for you to upload
-  anywhere.
+- **WebGL/Three.js is a real dependency again.** `frontend/package.json`
+  carries `three`, `@react-three/fiber`, and `@react-three/drei` as runtime
+  dependencies — the AI Core reactor (a procedural globe, ~28 rotating
+  rings, a volumetric beam, and a projection platform) is a genuine React
+  Three Fiber `<Canvas>` scene, not a DOM/CSS approximation. This does add
+  real bundle weight (three.js plus its R3F/drei wrappers is a meaningfully
+  larger dependency than the DOM/CSS-only version was) and does exercise
+  WebGL on whatever device loads the landing page — something to be aware
+  of if you ever profile the landing page's initial load or test on very
+  low-end/GPU-constrained hardware, though nothing in the current build
+  configuration needs to change to accommodate it.
+- **`@react-three/postprocessing` and `postprocessing` are installed but
+  currently unused.** An `EffectComposer`/`Bloom` postprocessing pass was
+  used early in the reactor's development and was the actual cause of a
+  persistent transparent-background bug (postprocessing composites through
+  an intermediate render target whose alpha channel doesn't reliably
+  survive the pass chain), so it was removed for good — every glow in the
+  scene is now carried by emissive materials, additive blending, and custom
+  GLSL shaders instead. The two packages are harmless dead weight in
+  `node_modules`/the dependency graph; removing them from
+  `frontend/package.json` would be a safe, if optional, cleanup.
+- **Still no external 3D or audio assets to host.** The reactor's globe,
+  rings, beam, and platform are all procedural Three.js geometry plus
+  hand-written GLSL shaders (via `drei`'s `shaderMaterial` + `extend`) — no
+  `.glb`/`.gltf` model files and no HDRI environment maps are loaded from
+  anywhere, so there's nothing extra to upload or host beyond the code
+  itself. The intro's background score is still fully synthesized via the
+  Web Audio API at runtime, so there's no `.mp3`/`.wav` asset in
+  `frontend/public/` either.
 - Nothing here changes the build/install commands in `frontend/vercel.json`
-  or the environment variables below.
+  or the environment variables below — `vite build` bundles the Three.js/R3F
+  code the same way it bundles everything else in the SPA.
 
 ---
 
