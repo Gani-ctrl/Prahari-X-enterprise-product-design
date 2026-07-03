@@ -1,36 +1,39 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { gsap } from "gsap";
-import { BootOverlay } from "./BootOverlay";
+import { AtmosphereCanvas } from "./AtmosphereCanvas";
+import { AtmosphereOverlays } from "./AtmosphereOverlays";
+import { CoreStage } from "./core/CoreStage";
+import { BootTerminal } from "./BootTerminal";
+import { NodeWidget } from "./NodeWidget";
+import { EncryptionProgress } from "./EncryptionProgress";
+import { MissionStatusPanel, SystemHealthPanel, SignalStrengthPanel, SystemCheckPanel } from "./HUDStack";
 import { TitleReveal } from "./TitleReveal";
-import { HUDOverlay } from "./HUDOverlay";
 import { useIntroAudio } from "./useIntroAudio";
 import { useDeviceTier } from "./useDeviceTier";
-import { PHASE_DURATIONS_MS, PHASE_ORDER, REDUCED_MOTION_SKIP_MS, type IntroPhase } from "./introConfig";
+import { useCursorParallax } from "./useCursorParallax";
+import { PHASE_DURATIONS_MS, PHASE_ORDER, REDUCED_MOTION_SKIP_MS, type IntroPhase } from "./aiIntroConfig";
+import { Volume2, VolumeX, SkipForward } from "lucide-react";
 
 // ----------------------------------------------------------------------------
-// Orchestrator for the lightweight cinematic intro. Pure DOM/CSS + GSAP +
-// Motion — no React Three Fiber, no WebGL, no GLTF assets. Owns the phase
-// timeline (driven by a single GSAP timeline rather than a chain of
-// setTimeouts), the mute toggle, and the scroll-driven dissolve into the
-// real homepage underneath. Rendered by IntroLandingPage — see that file
-// for how it's stacked above the existing, completely untouched
-// LandingPage, and for the introStore wiring that hides the site Navbar
-// while this component is on screen.
+// Orchestrator for the cinematic intro — AI Intelligence Core edition. Full
+// creative pivot from the previous soldier-hero concept: no character, no
+// weapon, no battlefield anywhere in this subsystem. The hero is now an
+// abstract AI Core (CoreStage), framed by a military boot terminal (left),
+// a stacked tactical HUD (right), and a cinematic metallic title reveal
+// (bottom) — all DOM/CSS/SVG + a single Canvas2D particle layer, no
+// WebGL/React Three Fiber.
+//
+// The phase timeline (GSAP-driven, ~6.2s auto-advance from "void" through
+// "title"), the mute toggle, and the scroll-driven dissolve into the real
+// homepage underneath are unchanged infrastructure carried over from the
+// previous intro — this pivot only replaces what's rendered inside each
+// phase, not how phases are scheduled or how the page transitions out.
+// Rendered by IntroLandingPage — see that file for how it's stacked above
+// the existing, completely untouched LandingPage, and for the introStore
+// wiring that hides the site Navbar while this component is on screen.
 // ----------------------------------------------------------------------------
 
 const AUTO_ADVANCE_PHASES = PHASE_ORDER.filter((p): p is Exclude<IntroPhase, "ready" | "dissolving"> => p !== "ready" && p !== "dissolving");
-
-/** How much smoke should be visually "present" per phase — consumed by
- * SmokeLayer (via BootOverlay) to breathe the atmosphere in and settle it
- * back down rather than holding one static density throughout. */
-const SMOKE_INTENSITY: Record<IntroPhase, number> = {
-  void: 0.12,
-  boot: 0.45,
-  reveal: 1,
-  title: 0.7,
-  ready: 0.5,
-  dissolving: 0.3,
-};
 
 interface CinematicIntroProps {
   /** 0..1 scroll-through progress of the pinned section, driven by the
@@ -59,6 +62,11 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
   const readyReported = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // Cursor parallax is always live — it just writes CSS custom properties
+  // that AICore/HUD elements opt into reading, so there's nothing to gate
+  // on phase (an unrendered element simply never reads the variables).
+  useCursorParallax(rootRef, !prefersReducedMotion);
+
   // --- Phase timeline: a single GSAP timeline calling setPhase at each
   // offset, instead of a chain of setTimeouts — GSAP owns the schedule, and
   // reverting the timeline on unmount/replay cancels every pending callback
@@ -79,7 +87,7 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
       }
     });
 
-    // Kick "boot" telemetry text on shortly after "void" starts.
+    // Kick the boot terminal typing shortly after "void" starts.
     tl.call(() => setBootStarted(true), [], ((stepMs ?? PHASE_DURATIONS_MS.void) + 100) / 1000);
 
     return () => {
@@ -139,10 +147,7 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
   // needs to update every scroll frame without triggering a re-render of
   // the whole overlay tree. Symmetric in both directions — scrolling back
   // up from the homepage into the intro brings the score back in exactly
-  // as it fades out going forward. The scroll position driving this ref is
-  // itself smoothed by Lenis (see LandingPage.tsx's useLenis()), which is
-  // what satisfies the "GSAP and Lenis" transition requirement — there's
-  // no separate smoothing layer to add on top of it.
+  // as it fades out going forward.
   useEffect(() => {
     let rafId: number;
     function tick() {
@@ -161,16 +166,97 @@ export function CinematicIntro({ dissolveProgressRef, onReady, onSkip }: Cinemat
     return () => cancelAnimationFrame(rafId);
   }, [dissolveProgressRef, setDissolveGain]);
 
-  const showBoot = phase === "void" || phase === "boot" || phase === "reveal";
+  const showAtmosphere = phase !== "void";
+  const showCore = phase === "assemble" || phase === "hud" || phase === "title" || phase === "ready" || phase === "dissolving";
+  const coreLabelsVisible = phase === "hud" || phase === "title" || phase === "ready" || phase === "dissolving";
+  const showTerminal = phase !== "void";
+  const showEncryption = phase === "assemble" || phase === "hud" || phase === "title" || phase === "ready" || phase === "dissolving";
+  const showHudStack = phase === "hud" || phase === "title" || phase === "ready" || phase === "dissolving";
   const showTitle = phase === "title" || phase === "ready" || phase === "dissolving";
   const showScrollHint = phase === "ready" || phase === "dissolving";
-  const showHud = phase === "ready" || phase === "dissolving";
+  const showControls = phase === "ready" || phase === "dissolving";
 
   return (
-    <div ref={rootRef} className="absolute inset-0 overflow-hidden bg-[color:var(--color-base)]">
-      <BootOverlay active={showBoot} bootStarted={bootStarted} smokeIntensity={SMOKE_INTENSITY[phase]} tier={tier} onBeep={playBootBeep} />
+    <div ref={rootRef} className="absolute inset-0 h-full w-full overflow-hidden bg-black">
+      {/* Pure black void with a single blinking cursor — nothing else is on
+          screen until the boot terminal starts. */}
+      {phase === "void" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="ai-void-cursor h-6 w-3" style={{ backgroundColor: "#2eea82" }} />
+          <style>{`
+            @keyframes ai-void-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+            .ai-void-cursor { animation: ai-void-blink 1s step-end infinite; }
+          `}</style>
+        </div>
+      )}
+
+      <div style={{ opacity: showAtmosphere ? 1 : 0, transition: "opacity 1.4s ease" }}>
+        <AtmosphereOverlays />
+        <AtmosphereCanvas tier={tier} />
+      </div>
+
+      {showCore && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            animation: "ai-core-assemble 1.1s cubic-bezier(0.16,1,0.3,1) both",
+          }}
+        >
+          <style>{`
+            @keyframes ai-core-assemble {
+              0% { opacity: 0; transform: scale(0.72) rotate(-8deg); }
+              100% { opacity: 1; transform: scale(1) rotate(0deg); }
+            }
+          `}</style>
+          <CoreStage labelsVisible={coreLabelsVisible} />
+        </div>
+      )}
+
+      {/* Left column: boot terminal + classified node widget, encryption
+          progress pinned to the bottom — one flex column so nothing needs
+          hand-tuned pixel offsets to stack correctly. */}
+      <div className="absolute inset-x-4 top-4 bottom-4 flex flex-col justify-between sm:inset-x-8 sm:top-8 sm:bottom-8">
+        <div className="flex flex-col items-start gap-4">
+          <BootTerminal active={showTerminal} bootStarted={bootStarted} onChar={playBootBeep} />
+          <NodeWidget active={showTerminal && bootStarted} />
+        </div>
+        <div>
+          <EncryptionProgress active={showEncryption} />
+        </div>
+      </div>
+
+      {/* Right column: stacked tactical HUD, distributed top-to-bottom. */}
+      <div className="absolute right-4 top-4 bottom-20 flex flex-col items-end justify-between sm:right-8 sm:top-8 sm:bottom-24">
+        <MissionStatusPanel active={showHudStack} delay={0} />
+        <SystemHealthPanel active={showHudStack} delay={0.15} />
+        <SignalStrengthPanel active={showHudStack} delay={0.3} />
+        <SystemCheckPanel active={showHudStack} delay={0.45} />
+      </div>
+
       <TitleReveal showTitle={showTitle} showScrollHint={showScrollHint} />
-      <HUDOverlay visible={showHud} muted={muted} onToggleMute={toggleMuted} onSkip={handleSkip} />
+
+      {/* Mute + Skip — always in the same corner, only surfaced once the
+          auto-sequence reaches "ready", matching the previous intro's
+          control-reveal timing exactly. */}
+      {showControls && (
+        <div className="pointer-events-auto absolute bottom-4 right-4 flex items-center gap-2 sm:bottom-6 sm:right-8">
+          <button
+            type="button"
+            onClick={toggleMuted}
+            className="glass flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
+            aria-label={muted ? "Unmute intro audio" : "Mute intro audio"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="glass mono-tag flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-wider text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-ink-0)]"
+          >
+            <SkipForward className="h-3.5 w-3.5" /> Skip
+          </button>
+        </div>
+      )}
     </div>
   );
 }

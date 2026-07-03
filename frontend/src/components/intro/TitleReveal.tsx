@@ -2,16 +2,15 @@ import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { gsap } from "gsap";
 import { ChevronDown } from "lucide-react";
-import { AOI_SUBTITLE, AOI_TAGLINE, AOI_TITLE } from "./introConfig";
+import { AI_COLORS, STATUS_BAR_TEXT, SUBTITLE, TAGLINE, TITLE } from "./aiIntroConfig";
 
 // ----------------------------------------------------------------------------
-// Title materialization (phase "title") + the persistent scroll-to-enter
-// affordance (phase "ready"). Deliberately NOT a simple fade/scale: a GSAP
-// timeline parts two soft smoke blobs away from center, brings up rotating
-// light rays behind the type, sweeps a metallic sheen across the title text,
-// throws a brief red/cyan chromatic-glitch duplicate of the letters, and
-// only then settles the HUD brackets and subtitle into place. Everything
-// here is DOM/CSS + GSAP + Motion — no 3D text mesh, no WebGL.
+// The cinematic title card: tagline, a bracket-flanked metallic "PRAHARI X"
+// wordmark, subtitle, a small unit emblem, and a bottom status bar. The
+// title doesn't just fade in — a GSAP timeline blurs it into focus, sweeps
+// a metallic highlight across the letterforms, and throws one brief
+// red/cyan RGB-split glitch pass, echoing the "digital interference"
+// called out in the brief. Purely DOM/CSS + GSAP — no 3D text mesh.
 // ----------------------------------------------------------------------------
 
 interface TitleRevealProps {
@@ -19,11 +18,20 @@ interface TitleRevealProps {
   showScrollHint: boolean;
 }
 
+function UnitEmblem() {
+  return (
+    <svg viewBox="0 0 120 70" className="h-9 w-16" role="img" aria-label="PRAHARI X unit emblem">
+      <path d="M 60 14 L 18 24 Q 32 30 42 27 Q 28 36 16 36 Q 32 46 48 36 L 60 30" fill="none" stroke={AI_COLORS.glow400} strokeOpacity={0.55} strokeWidth={1.6} />
+      <path d="M 60 14 L 102 24 Q 88 30 78 27 Q 92 36 104 36 Q 88 46 72 36 L 60 30" fill="none" stroke={AI_COLORS.glow400} strokeOpacity={0.55} strokeWidth={1.6} />
+      <path d="M 60 18 L 74 25 L 72 44 Q 60 58 60 58 Q 60 58 48 44 L 46 25 Z" fill="rgba(23,199,102,0.08)" stroke={AI_COLORS.glow400} strokeOpacity={0.7} strokeWidth={1.6} />
+    </svg>
+  );
+}
+
 export function TitleReveal({ showTitle, showScrollHint }: TitleRevealProps) {
-  const smokeLeftRef = useRef<HTMLDivElement>(null);
-  const smokeRightRef = useRef<HTMLDivElement>(null);
-  const raysRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const bracketLeftRef = useRef<HTMLSpanElement>(null);
+  const bracketRightRef = useRef<HTMLSpanElement>(null);
   const ghostRedRef = useRef<HTMLSpanElement>(null);
   const ghostCyanRef = useRef<HTMLSpanElement>(null);
   const played = useRef(false);
@@ -35,59 +43,27 @@ export function TitleReveal({ showTitle, showScrollHint }: TitleRevealProps) {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-      // 1. Two smoke blobs, initially overlapping dead-center, part to the
-      // sides — the title is revealed "through" the parting smoke rather
-      // than appearing over a static backdrop.
-      if (smokeLeftRef.current && smokeRightRef.current) {
-        gsap.set([smokeLeftRef.current, smokeRightRef.current], { opacity: 0.85, x: 0 });
-        tl.to(smokeLeftRef.current, { x: -220, opacity: 0.15, duration: 1.4 }, 0);
-        tl.to(smokeRightRef.current, { x: 220, opacity: 0.15, duration: 1.4 }, 0);
-      }
-
-      // 2. Light rays fade/scale up behind the type, then keep a slow
-      // idle rotation (handled separately below, outside the timeline).
-      if (raysRef.current) {
-        tl.fromTo(raysRef.current, { opacity: 0, scale: 0.7 }, { opacity: 0.5, scale: 1, duration: 1.1 }, 0.2);
-      }
-
-      // 3. Title itself: blur/scale settle...
       if (titleRef.current) {
-        tl.fromTo(
-          titleRef.current,
-          { opacity: 0, scale: 1.2, filter: "blur(22px)" },
-          { opacity: 1, scale: 1, filter: "blur(0px)", duration: 1.0 },
-          0.3
-        );
-        // ...then a metallic sheen sweep across the text via
-        // background-position, purely a CSS gradient animation.
-        tl.fromTo(titleRef.current, { backgroundPosition: "-120% 0%" }, { backgroundPosition: "220% 0%", duration: 1.3, ease: "power2.inOut" }, 0.9);
+        tl.fromTo(titleRef.current, { opacity: 0, scale: 1.15, filter: "blur(18px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.9 }, 0);
+        tl.fromTo(titleRef.current, { backgroundPosition: "-140% 0%" }, { backgroundPosition: "220% 0%", duration: 1.2, ease: "power2.inOut" }, 0.6);
       }
-
-      // 4. Brief chromatic-glitch pass: red/cyan duplicate letterforms
-      // punch out to either side for a couple of frames, classic RGB-split
-      // glitch, then snap back.
+      if (bracketLeftRef.current && bracketRightRef.current) {
+        tl.fromTo(bracketLeftRef.current, { opacity: 0, x: 12 }, { opacity: 0.8, x: 0, duration: 0.6 }, 0.15);
+        tl.fromTo(bracketRightRef.current, { opacity: 0, x: -12 }, { opacity: 0.8, x: 0, duration: 0.6 }, 0.15);
+      }
       if (ghostRedRef.current && ghostCyanRef.current) {
-        tl.set([ghostRedRef.current, ghostCyanRef.current], { opacity: 1 }, 1.15)
-          .to(ghostRedRef.current, { x: -4, duration: 0.06, repeat: 3, yoyo: true }, 1.15)
-          .to(ghostCyanRef.current, { x: 4, duration: 0.06, repeat: 3, yoyo: true }, 1.15)
-          .to([ghostRedRef.current, ghostCyanRef.current], { opacity: 0, x: 0, duration: 0.15 }, 1.4);
+        tl.set([ghostRedRef.current, ghostCyanRef.current], { opacity: 1 }, 0.85)
+          .to(ghostRedRef.current, { x: -3, duration: 0.05, repeat: 3, yoyo: true }, 0.85)
+          .to(ghostCyanRef.current, { x: 3, duration: 0.05, repeat: 3, yoyo: true }, 0.85)
+          .to([ghostRedRef.current, ghostCyanRef.current], { opacity: 0, x: 0, duration: 0.12 }, 1.05);
       }
     });
 
     return () => ctx.revert();
   }, [showTitle]);
 
-  // Slow continuous ray rotation, independent of the reveal timeline above.
-  useEffect(() => {
-    if (!raysRef.current) return;
-    const anim = gsap.to(raysRef.current, { rotate: 360, duration: 40, ease: "linear", repeat: -1 });
-    return () => {
-      anim.kill();
-    };
-  }, []);
-
   return (
-    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center">
+    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-end pb-6 sm:pb-10">
       <AnimatePresence>
         {showTitle && (
           <motion.div
@@ -95,84 +71,85 @@ export function TitleReveal({ showTitle, showScrollHint }: TitleRevealProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }}
           >
-            {/* Parting smoke, centered behind the title */}
-            <div
-              ref={smokeLeftRef}
-              className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0"
-              style={{ background: "radial-gradient(circle, rgba(57,160,110,0.5) 0%, transparent 70%)", filter: "blur(40px)" }}
-            />
-            <div
-              ref={smokeRightRef}
-              className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0"
-              style={{ background: "radial-gradient(circle, rgba(124,138,163,0.4) 0%, transparent 70%)", filter: "blur(40px)" }}
-            />
-
-            {/* Rotating light rays, conic gradient */}
-            <div
-              ref={raysRef}
-              className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 opacity-0"
-              style={{
-                background:
-                  "conic-gradient(from 0deg, transparent 0deg, rgba(92,185,140,0.18) 8deg, transparent 20deg, transparent 160deg, rgba(92,185,140,0.14) 168deg, transparent 180deg, transparent 340deg, rgba(92,185,140,0.16) 350deg, transparent 360deg)",
-              }}
-            />
-
             <motion.p
-              className="mono-tag relative mb-3 text-[11px] uppercase tracking-[0.35em] text-[color:var(--color-sentinel-400)]"
-              initial={{ opacity: 0, y: 8 }}
+              className="mono-tag mb-2 text-[10px] uppercase tracking-[0.4em] sm:text-xs"
+              style={{ color: AI_COLORS.ink0 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 0.85, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.6 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
             >
-              {AOI_TAGLINE}
+              {TAGLINE}
             </motion.p>
 
-            <div className="relative">
-              {/* HUD projection brackets */}
-              <span className="absolute -left-4 -top-3 h-4 w-4 border-l-2 border-t-2 border-[color:var(--color-sentinel-500)]/60 sm:-left-6 sm:-top-4" />
-              <span className="absolute -bottom-3 -right-4 h-4 w-4 border-b-2 border-r-2 border-[color:var(--color-sentinel-500)]/60 sm:-bottom-4 sm:-right-6" />
-
-              <h1
-                ref={titleRef}
-                className="select-none bg-clip-text text-5xl font-bold uppercase tracking-tight text-transparent opacity-0 sm:text-7xl md:text-8xl"
-                style={{
-                  fontFamily: "var(--font-sans)",
-                  backgroundImage:
-                    "linear-gradient(110deg, #b7dbc4 0%, #f4f6fb 12%, #5cb98c 24%, #b7dbc4 36%, #f4f6fb 48%, #39a06e 60%, #b7dbc4 72%, #f4f6fb 84%, #5cb98c 100%)",
-                  backgroundSize: "260% 100%",
-                }}
-              >
-                {AOI_TITLE}
-              </h1>
-
-              {/* Chromatic-glitch ghost duplicates */}
-              <span
-                ref={ghostRedRef}
-                aria-hidden
-                className="pointer-events-none absolute inset-0 select-none text-5xl font-bold uppercase tracking-tight opacity-0 mix-blend-screen sm:text-7xl md:text-8xl"
-                style={{ fontFamily: "var(--font-sans)", color: "rgba(255,84,112,0.65)" }}
-              >
-                {AOI_TITLE}
+            <div className="relative flex items-center gap-2 sm:gap-4">
+              <span ref={bracketLeftRef} className="select-none text-3xl font-thin opacity-0 sm:text-5xl" style={{ color: AI_COLORS.glow400 }}>
+                [
               </span>
-              <span
-                ref={ghostCyanRef}
-                aria-hidden
-                className="pointer-events-none absolute inset-0 select-none text-5xl font-bold uppercase tracking-tight opacity-0 mix-blend-screen sm:text-7xl md:text-8xl"
-                style={{ fontFamily: "var(--font-sans)", color: "rgba(92,185,140,0.65)" }}
-              >
-                {AOI_TITLE}
+
+              <div className="relative">
+                <h1
+                  ref={titleRef}
+                  className="select-none bg-clip-text text-4xl font-black uppercase leading-none tracking-tight text-transparent opacity-0 sm:text-6xl md:text-7xl"
+                  style={{
+                    fontFamily: "'Arial Black', 'Segoe UI', var(--font-sans)",
+                    backgroundImage:
+                      "linear-gradient(110deg, #d9dde3 0%, #ffffff 14%, #9199a8 28%, #d9dde3 42%, #ffffff 56%, #8b93a1 70%, #d9dde3 84%, #ffffff 100%)",
+                    backgroundSize: "260% 100%",
+                    textShadow: "0 10px 30px rgba(0,0,0,0.7)",
+                  }}
+                >
+                  {TITLE}
+                </h1>
+                <span
+                  ref={ghostRedRef}
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 select-none text-4xl font-black uppercase leading-none tracking-tight opacity-0 mix-blend-screen sm:text-6xl md:text-7xl"
+                  style={{ fontFamily: "'Arial Black', 'Segoe UI', var(--font-sans)", color: "rgba(255,84,112,0.6)" }}
+                >
+                  {TITLE}
+                </span>
+                <span
+                  ref={ghostCyanRef}
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 select-none text-4xl font-black uppercase leading-none tracking-tight opacity-0 mix-blend-screen sm:text-6xl md:text-7xl"
+                  style={{ fontFamily: "'Arial Black', 'Segoe UI', var(--font-sans)", color: "rgba(94,245,168,0.6)" }}
+                >
+                  {TITLE}
+                </span>
+              </div>
+
+              <span ref={bracketRightRef} className="select-none text-3xl font-thin opacity-0 sm:text-5xl" style={{ color: AI_COLORS.glow400 }}>
+                ]
               </span>
             </div>
 
             <motion.p
-              className="mono-tag mt-4 text-xs uppercase text-[color:var(--color-ink-2)] sm:text-sm"
-              initial={{ opacity: 0, letterSpacing: "0.02em", y: 8 }}
-              animate={{ opacity: 1, letterSpacing: "0.3em", y: 0 }}
-              transition={{ delay: 1.5, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              className="mono-tag mt-3 text-[10px] uppercase sm:text-sm"
+              style={{ color: AI_COLORS.ink2 }}
+              initial={{ opacity: 0, letterSpacing: "0.05em", y: 6 }}
+              animate={{ opacity: 1, letterSpacing: "0.35em", y: 0 }}
+              transition={{ delay: 1.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             >
-              {AOI_SUBTITLE}
+              {SUBTITLE}
             </motion.p>
+
+            <motion.div className="mt-3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.3, duration: 0.5 }}>
+              <UnitEmblem />
+            </motion.div>
+
+            <motion.div
+              className="mt-4 flex items-center gap-2 rounded-full px-4 py-1.5"
+              style={{ border: `1px solid ${AI_COLORS.glow700}`, background: "rgba(6, 12, 8, 0.6)" }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.5, duration: 0.5 }}
+            >
+              <span className="mono-tag text-[10px] uppercase tracking-[0.2em]" style={{ color: AI_COLORS.glow400 }}>
+                {">>"} {STATUS_BAR_TEXT}
+              </span>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -180,15 +157,17 @@ export function TitleReveal({ showTitle, showScrollHint }: TitleRevealProps) {
       <AnimatePresence>
         {showScrollHint && (
           <motion.div
-            className="pointer-events-none absolute bottom-8 flex flex-col items-center gap-2 sm:bottom-12"
+            className="pointer-events-none absolute bottom-2 flex flex-col items-center gap-1.5 sm:bottom-3"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <span className="mono-tag text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-ink-2)]">Scroll to Enter</span>
-            <motion.div animate={{ y: [0, 6, 0], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}>
-              <ChevronDown className="h-5 w-5 text-[color:var(--color-sentinel-400)]" />
+            <span className="mono-tag text-[9px] uppercase tracking-[0.3em]" style={{ color: AI_COLORS.ink2 }}>
+              Scroll to Enter
+            </span>
+            <motion.div animate={{ y: [0, 5, 0], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}>
+              <ChevronDown className="h-4 w-4" style={{ color: AI_COLORS.glow400 }} />
             </motion.div>
           </motion.div>
         )}

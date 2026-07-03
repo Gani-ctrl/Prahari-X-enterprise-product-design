@@ -1,16 +1,11 @@
 // ----------------------------------------------------------------------------
-// DEPRECATED — no longer used.
-//
-// The cinematic intro was rebuilt as a lightweight DOM/CSS + GSAP + Motion
-// sequence (see components/intro/CinematicIntro.tsx) instead of a React
-// Three Fiber scene, specifically to remove Three.js/WebGL from the build
-// entirely and eliminate the complexity/instability that came with it.
-//
-// This file (and the rest of components/intro/scene/) is no longer imported
-// anywhere in the app — nothing in this directory is reachable from any
-// entry point, so none of it is part of the production bundle. It's left in
-// place only because this workspace doesn't allow file deletion; treat this
-// directory as dead code.
+// DEPRECATED — archived per explicit creative-pivot direction: the intro's
+// hero is now a 2D/DOM AI Intelligence Core (SVG rings + CSS/Canvas
+// atmosphere), not a React Three Fiber scene, so there is no 3D camera to
+// rig. See components/intro/core/AICore.tsx and
+// components/intro/useCursorParallax.ts for the new cursor-driven parallax
+// approach (CSS transforms, not a WebGL camera). Left as an inert stub
+// because this workspace doesn't allow file deletion.
 // ----------------------------------------------------------------------------
 
 export {};

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { QUALITY_TIERS } from "./introConfig";
+import { PARTICLE_TIERS } from "./aiIntroConfig";
 
-export type QualityTier = keyof typeof QUALITY_TIERS;
+export type QualityTier = keyof typeof PARTICLE_TIERS;
 
 /** Cheap, synchronous heuristic — no benchmarking, just device signals
  * that are reliably available up front, so the intro never has to
@@ -25,6 +25,10 @@ function detectTier(): QualityTier {
 export function useDeviceTier() {
   return useMemo(() => {
     const tier = detectTier();
-    return { tier, budget: QUALITY_TIERS[tier], prefersReducedMotion: typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches };
+    return {
+      tier,
+      budget: PARTICLE_TIERS[tier],
+      prefersReducedMotion: typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+    };
   }, []);
 }
